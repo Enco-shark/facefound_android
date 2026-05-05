@@ -26,6 +26,7 @@ logcat.txt
 error.txt
 
 MD_UPDATE_REPORT.md
+GIT_TAG_GUIDE.md
 
 *.onnx
 *.onnx.bak
