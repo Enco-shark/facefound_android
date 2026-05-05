@@ -6,15 +6,16 @@
 
 ## 功能特性
 
-- 人脸检测 - SCRFD (det_10g) 多尺度锚点检测，输出边界框 + 5 点关键点
-- 人脸对齐 - 5 点最小二乘相似变换，对齐到 ArcFace 标准 112x112 模板
-- 人脸识别 - ArcFace (w600k_r50) 提取 512 维嵌入向量，余弦相似度匹配
-- 模板管理 - 支持 .npz 格式模板导入，持久化存储，查看/重命名/删除
-- 识别历史 - 自动保存识别时间、结果和耗时
-- 结果保存 - 识别结果图片保存到系统相册
-- 主题切换 - 深色/浅色主题
-- 现代化 UI - Jetpack Compose + Material 3
-- 离线运行 - 所有推理在设备端完成，无需网络
+- **人脸检测** - SCRFD (det_10g) 多尺度锚点检测，输出边界框 + 5 点关键点
+- **人脸对齐** - 5 点最小二乘相似变换，对齐到 ArcFace 标准 112x112 模板
+- **人脸识别** - ArcFace (w600k_r50) 提取 512 维嵌入向量，余弦相似度匹配
+- **视频识别** - 批量视频帧处理，输出带标注的人脸识别视频
+- **模板管理** - 支持 .npz 格式模板导入，持久化存储，查看/重命名/删除
+- **识别历史** - 自动保存识别时间、结果和耗时
+- **结果保存** - 识别结果图片保存到系统相册
+- **主题切换** - 深色/浅色主题
+- **现代化 UI** - Jetpack Compose + Material 3
+- **离线运行** - 所有推理在设备端完成，无需网络
 
 ---
 
@@ -50,8 +51,8 @@
 
 | 文件 | 来源 | 大小 | 说明 |
 |------|------|------|------|
-| det_10g.onnx | InsightFace buffalo_l | ~170MB | SCRFD 人脸检测模型 |
-| w600k_r50.onnx | InsightFace buffalo_l | ~65MB | ArcFace 人脸识别模型 |
+| det_10g.onnx | InsightFace buffalo_l | ~16MB | SCRFD 人脸检测模型 |
+| w600k_r50.onnx | InsightFace buffalo_l | ~166MB | ArcFace 人脸识别模型 |
 
 模型文件需放置于 `app/src/main/assets/` 目录。
 
@@ -101,19 +102,19 @@ cp ~/.insightface/models/buffalo_l/w600k_r50.onnx app/src/main/assets/
 
 ### 3. 导入与同步
 
-1. 打开 Android Studio → `Open an Existing Project` → 选择 `android_project` 目录
+1. 打开 Android Studio -> `Open an Existing Project` -> 选择 `android_project` 目录
 2. 等待 Gradle 同步完成（首次可能需要下载依赖，约 5-10 分钟）
 3. 如同步失败，检查网络或配置国内镜像
 
 ### 4. 连接设备
 
-1. 手机开启 `开发者选项` → `USB 调试`
+1. 手机开启 `开发者选项` -> `USB 调试`
 2. USB 连接电脑，授权调试
 3. Android Studio 顶部设备列表选择你的手机
 
 ### 5. 运行与构建
 
-**Android Studio 运行**: 点击 ▶️ 或 `Shift+F10`
+**Android Studio 运行**: 点击 Run 按钮或 `Shift+F10`
 
 **命令行构建**:
 
@@ -148,25 +149,28 @@ android_project/
 │   └── src/main/
 │       ├── AndroidManifest.xml             # 应用清单（权限、Activity声明）
 │       ├── assets/                         # 模型文件目录
-│       │   ├── det_10g.onnx                #   人脸检测模型 (~170MB)
-│       │   └── w600k_r50.onnx              #   人脸识别模型 (~65MB)
+│       │   ├── det_10g.onnx                #   人脸检测模型 (~16MB)
+│       │   └── w600k_r50.onnx              #   人脸识别模型 (~166MB)
 │       ├── java/com/Enco/facefound/
 │       │   ├── MainActivity.kt             # 主 Activity（Compose 入口）
 │       │   ├── FaceRecognitionApp.kt       # Application 类
 │       │   ├── ml/
-│       │   │   └── OnnxFaceRecognition.kt  # ★ 核心推理引擎
+│       │   │   └── OnnxFaceRecognition.kt  # 核心推理引擎
 │       │   ├── ui/
 │       │   │   ├── screens/
-│       │   │   │   └── MainScreen.kt       # Compose 主界面
+│       │   │   │   ├── MainScreen.kt       #   Compose 主界面
+│       │   │   │   └── VideoScreen.kt      #   视频识别界面
 │       │   │   ├── theme/
 │       │   │   │   ├── Color.kt            #   颜色定义
 │       │   │   │   ├── Theme.kt            #   主题配置
 │       │   │   │   └── Type.kt             #   字体排版
 │       │   │   └── viewmodel/
-│       │   │       └── FaceRecognitionViewModel.kt  # ★ 视图模型
-│       │   └── util/
-│       │       ├── NpzParser.kt            # ★ NPZ 模板解析器
-│       │       └── TemplateRepository.kt   #   模板持久化存储
+│       │   │       └── FaceRecognitionViewModel.kt  # 视图模型
+│       │   ├── util/
+│       │   │   ├── NpzParser.kt            #   NPZ 模板解析器
+│       │   │   └── TemplateRepository.kt   #   模板持久化存储
+│       │   └── video/
+│       │       └── VideoProcessor.kt       #   视频帧处理与编码器
 │       └── res/                            # 资源文件（图标、字符串、主题）
 ├── build.gradle.kts                        # 项目级构建配置（AGP/Kotlin版本）
 ├── settings.gradle.kts                     # 项目设置（模块声明）
@@ -178,13 +182,14 @@ android_project/
 
 ### 核心文件说明
 
-| 文件 | 职责 | 行数 |
-|------|------|------|
-| OnnxFaceRecognition.kt | ONNX 模型加载、人脸检测、对齐、特征提取、识别匹配 | ~1100 |
-| FaceRecognitionViewModel.kt | UI 状态管理、识别流程编排、模板管理 | ~540 |
-| NpzParser.kt | NPZ/ZIP 解析、NPY header 解析、Unicode 名字解析、嵌入归一化 | ~700 |
-| TemplateRepository.kt | 模板二进制序列化、原子写入、索引管理 | ~140 |
-| MainScreen.kt | Compose UI 布局、交互逻辑 | ~800 |
+| 文件 | 职责 |
+|------|------|
+| OnnxFaceRecognition.kt | ONNX 模型加载、人脸检测、对齐、特征提取、识别匹配 |
+| VideoProcessor.kt | 视频帧提取、批量人脸识别、结果绘制、H.264 编码输出 |
+| FaceRecognitionViewModel.kt | UI 状态管理、识别/视频流程编排、模板管理 |
+| NpzParser.kt | NPZ/ZIP 解析、NPY header 解析、Unicode 名字解析、嵌入归一化 |
+| TemplateRepository.kt | 模板二进制序列化、原子写入、索引管理 |
+| MainScreen.kt | Compose UI 布局、导航抽屉、设置页面 |
 
 ---
 
@@ -193,62 +198,62 @@ android_project/
 ### 整体流程
 
 ```
-输入图片
-   │
-   ▼
-┌─────────────────────────┐
-│  人脸检测 (det_10g.onnx) │
-│  SCRFD 多尺度锚点检测     │
-│  输入: 640×640 RGB       │
-│  输出: 边界框 + 5关键点   │
-│  后处理: 阈值过滤 + NMS   │
-└───────────┬─────────────┘
-            │ 每张人脸
-            ▼
-┌─────────────────────────┐
-│  人脸对齐 (alignFace)    │
-│  5点最小二乘相似变换      │
-│  源关键点 → ArcFace标准点 │
-│  输出: 112×112 对齐人脸   │
-└───────────┬─────────────┘
-            │
-            ▼
-┌─────────────────────────┐
-│  特征提取 (w600k_r50)    │
-│  ArcFace 识别模型         │
-│  输入: 112×112 RGB       │
-│  输出: 512维嵌入向量      │
-│  后处理: L2归一化         │
-└───────────┬─────────────┘
-            │
-            ▼
-┌─────────────────────────┐
-│  身份匹配 (recognizeFace) │
-│  余弦相似度比对           │
-│  与模板库逐个比较          │
-│  阈值判断 → 姓名/UNKNOWN  │
-└─────────────────────────┘
+输入图片/视频帧
+   |
+   v
++-------------------------+
+|  人脸检测 (det_10g.onnx) |
+|  SCRFD 多尺度锚点检测     |
+|  输入: 640x640 RGB       |
+|  输出: 边界框 + 5关键点   |
+|  后处理: 阈值过滤 + NMS   |
++-----------+-------------+
+            | 每张人脸
+            v
++-------------------------+
+|  人脸对齐 (alignFace)    |
+|  5点最小二乘相似变换      |
+|  源关键点 -> ArcFace标准点|
+|  输出: 112x112 对齐人脸   |
++-----------+-------------+
+            |
+            v
++-------------------------+
+|  特征提取 (w600k_r50)    |
+|  ArcFace 识别模型         |
+|  输入: 112x112 RGB       |
+|  输出: 512维嵌入向量      |
+|  后处理: L2归一化         |
++-----------+-------------+
+            |
+            v
++-------------------------+
+|  身份匹配 (recognizeFace) |
+|  余弦相似度比对           |
+|  与模板库逐个比较          |
+|  阈值判断 -> 姓名/UNKNOWN  |
++-------------------------+
 ```
 
 ### 人脸检测 (SCRFD)
 
 det_10g.onnx 是 InsightFace 的 SCRFD (Sample and Computation Redistribution for Face Detection) 模型:
 
-- **输入**: `[1, 3, 640, 640]` — 单张 640×640 RGB 图片
+- **输入**: `[1, 3, 640, 640]` -- 单张 640x640 RGB 图片
 - **预处理**: `pixel = (channel - 127.5) / 128.0`，BGR 通道顺序
 - **输出**: 9 个张量，按类型分组:
-  - 3 个 score 张量: `[12800,1]`, `[3200,1]`, `[800,1]` — 步长 8/16/32 的置信度
-  - 3 个 bbox 张量: `[12800,4]`, `[3200,4]`, `[800,4]` — 边界框偏移
-  - 3 个 kps 张量: `[12800,10]`, `[3200,10]`, `[800,10]` — 5个关键点坐标
+  - 3 个 score 张量: `[12800,1]`, `[3200,1]`, `[800,1]` -- 步长 8/16/32 的置信度
+  - 3 个 bbox 张量: `[12800,4]`, `[3200,4]`, `[800,4]` -- 边界框偏移
+  - 3 个 kps 张量: `[12800,10]`, `[3200,10]`, `[800,10]` -- 5个关键点坐标
 - **每个位置 2 个锚点** (anchorsPerPos=2)
-- **后处理**: 置信度阈值过滤 → 解码边界框/关键点 → NMS 去重
+- **后处理**: 置信度阈值过滤 -> 解码边界框/关键点 -> NMS 去重
 
 ### 人脸对齐 (Similarity Transform)
 
 将检测到的人脸关键点对齐到 ArcFace 标准模板坐标:
 
 ```
-ArcFace 标准目标点 (112×112):
+ArcFace 标准目标点 (112x112):
   左眼:  (38.29, 51.70)
   右眼:  (73.53, 51.50)
   鼻尖:  (56.03, 71.74)
@@ -259,19 +264,19 @@ ArcFace 标准目标点 (112×112):
 使用 5 个点对做**最小二乘相似变换**估计，求解 4 参数变换 `[a, b, tx, ty]`:
 
 ```
-x' = a·x - b·y + tx
-y' = b·x + a·y + ty
+x' = a*x - b*y + tx
+y' = b*x + a*y + ty
 ```
 
-其中 `a = scale·cos(θ)`, `b = scale·sin(θ)`，通过构建正规方程 `AᵀA·p = Aᵀb` 用高斯消元法求解。这比仅用双眼 2 点的变换更精确，能同时校正鼻尖和嘴角位置。
+其中 `a = scale*cos(theta)`, `b = scale*sin(theta)`，通过构建正规方程 `A^T A * p = A^T b` 用高斯消元法求解。这比仅用双眼 2 点的变换更精确，能同时校正鼻尖和嘴角位置。
 
 ### 人脸识别 (ArcFace)
 
 w600k_r50.onnx 是 InsightFace 的 ArcFace 识别模型:
 
-- **输入**: `[1, 3, 112, 112]` — 对齐后的 112×112 RGB 人脸
+- **输入**: `[1, 3, 112, 112]` -- 对齐后的 112x112 RGB 人脸
 - **预处理**: `pixel = (channel - 127.5) / 128.0`，BGR 通道顺序
-- **输出**: `[1, 512]` — 512 维嵌入向量
+- **输出**: `[1, 512]` -- 512 维嵌入向量
 - **后处理**: L2 归一化，使向量模长为 1
 
 ### 身份匹配
@@ -279,7 +284,7 @@ w600k_r50.onnx 是 InsightFace 的 ArcFace 识别模型:
 使用**余弦相似度**比较实时嵌入与模板嵌入:
 
 ```
-similarity = (a · b) / (‖a‖ × ‖b‖)
+similarity = (a . b) / (||a|| * ||b||)
 ```
 
 由于嵌入已 L2 归一化，余弦相似度等价于点积，范围 [-1, 1]。阈值 0.45 为默认值，可调节:
@@ -292,8 +297,8 @@ NPZ 文件本质是 ZIP 压缩包，包含多个 `.npy` 数组文件:
 
 ```
 templates.npz (ZIP)
-  ├── names.npy        — dtype='<U9', shape=(N,) — N 个人名，每个最多9个UTF-32字符
-  └── embeddings.npy   — dtype='<f4', shape=(N, 512) — N 个512维float32嵌入向量
+  |-- names.npy        -- dtype='<U9', shape=(N,) -- N 个人名，每个最多9个UTF-32字符
+  +-- embeddings.npy   -- dtype='<f4', shape=(N, 512) -- N 个512维float32嵌入向量
 ```
 
 解析流程:
@@ -309,11 +314,19 @@ templates.npz (ZIP)
 
 ### 操作流程
 
-1. 启动应用 → 自动加载模型和已保存模板
-2. 选择图片 → 点击预览区域
-3. 导入模板 → 点击"加载模板"选择 .npz 文件（首次使用）
-4. 调节阈值 → 拖动滑块（默认 0.45）
-5. 开始识别 → 点击按钮，查看结果
+1. 启动应用 -> 自动加载模型和已保存模板
+2. 选择图片 -> 点击预览区域
+3. 导入模板 -> 点击"加载模板"选择 .npz 文件（首次使用）
+4. 调节阈值 -> 拖动滑块（默认 0.45）
+5. 开始识别 -> 点击按钮，查看结果
+
+### 视频识别流程
+
+1. 侧滑菜单 -> 进入"视频识别"页面
+2. 选择视频 -> 点击"选择视频"按钮
+3. 设置参数 -> 调整相似度和采样间隔
+4. 开始处理 -> 点击"开始识别"，等待处理完成
+5. 保存结果 -> 点击"保存视频"，输出文件将保存到系统相册
 
 ### 模板文件格式
 
@@ -355,12 +368,12 @@ np.savez("templates.npz", names=names, embeddings=embeddings)
 1. 检查 JDK 版本是否为 17: `java -version`
 2. 检查网络连接
 3. 配置国内镜像: 修改 `settings.gradle.kts` 添加阿里云镜像
-4. File → Invalidate Caches / Restart
+4. File -> Invalidate Caches / Restart
 
 ### 模型加载失败
 
 1. 确认 `app/src/main/assets/` 下有 `det_10g.onnx` 和 `w600k_r50.onnx`
-2. 确认文件完整（检测模型 ~170MB，识别模型 ~65MB）
+2. 确认文件完整（检测模型 ~16MB，识别模型 ~166MB）
 3. Clean Project 后重新构建
 
 ### 识别全部返回 UNKNOWN

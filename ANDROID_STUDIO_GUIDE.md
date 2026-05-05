@@ -1,6 +1,6 @@
-# 🤖 Android Studio 项目导入指南
+# Android Studio 项目导入指南
 
-## 📁 项目结构
+## 项目结构
 
 ```
 android_project/
@@ -10,18 +10,29 @@ android_project/
 │   └── src/
 │       └── main/
 │           ├── AndroidManifest.xml
+│           ├── assets/
+│           │   ├── det_10g.onnx  # 人脸检测模型 (~16MB)
+│           │   └── w600k_r50.onnx# 人脸识别模型 (~166MB)
 │           ├── java/com/Enco/facefound/
 │           │   ├── MainActivity.kt
 │           │   ├── FaceRecognitionApp.kt
-│           │   └── ui/
-│           │       ├── screens/
-│           │       │   └── MainScreen.kt
-│           │       ├── viewmodel/
-│           │       │   └── FaceRecognitionViewModel.kt
-│           │       └── theme/
-│           │           ├── Color.kt
-│           │           ├── Theme.kt
-│           │           └── Type.kt
+│           │   ├── ml/
+│           │   │   └── OnnxFaceRecognition.kt
+│           │   ├── ui/
+│           │   │   ├── screens/
+│           │   │   │   ├── MainScreen.kt
+│           │   │   │   └── VideoScreen.kt
+│           │   │   ├── viewmodel/
+│           │   │   │   └── FaceRecognitionViewModel.kt
+│           │   │   └── theme/
+│           │   │       ├── Color.kt
+│           │   │       ├── Theme.kt
+│           │   │       └── Type.kt
+│           │   ├── util/
+│           │   │   ├── NpzParser.kt
+│           │   │   └── TemplateRepository.kt
+│           │   └── video/
+│           │       └── VideoProcessor.kt
 │           └── res/
 │               ├── values/
 │               │   ├── strings.xml
@@ -40,45 +51,46 @@ android_project/
 
 ---
 
-## 🚀 导入步骤
+## 导入步骤
 
 ### 1. 打开 Android Studio
 
-启动 Android Studio（建议版本：Giraffe 或更新）
+启动 Android Studio（推荐版本：Giraffe 2023.1.1 或更新）
 
 ### 2. 导入项目
 
 ```
-File → Open → 选择 android_project 文件夹
+File -> Open -> 选择 android_project 文件夹
 ```
 
 ### 3. 等待 Gradle 同步
 
-Android Studio 会自动下载依赖并同步项目。这可能需要几分钟。
+Android Studio 会自动下载依赖并同步项目。首次同步可能需要几分钟。
 
 ### 4. 配置 SDK
 
 确保已安装：
-- Android SDK 34
+
+- Android SDK 34 (Android 14)
 - Android SDK Build-Tools 34
 - Android Emulator（可选）
 
 ```
-File → Settings → Appearance & Behavior → System Settings → Android SDK
+File -> Settings -> Appearance & Behavior -> System Settings -> Android SDK
 ```
 
 ### 5. 运行项目
 
-点击 ▶️ 运行按钮，或按 `Shift + F10`
+点击 Run 按钮，或按 `Shift + F10`
 
 ---
 
-## 📱 构建 APK
+## 构建 APK
 
 ### Debug 版本
 
 ```
-Build → Build Bundle(s) / APK(s) → Build APK(s)
+Build -> Build Bundle(s) / APK(s) -> Build APK(s)
 ```
 
 APK 输出路径：`app/build/outputs/apk/debug/app-debug.apk`
@@ -86,25 +98,27 @@ APK 输出路径：`app/build/outputs/apk/debug/app-debug.apk`
 ### Release 版本
 
 ```
-Build → Generate Signed Bundle / APK → APK
+Build -> Generate Signed Bundle / APK -> APK
 ```
 
 需要配置签名密钥。
 
 ---
 
-## 🔧 常见问题
+## 常见问题
 
 ### Gradle 同步失败
 
 **解决：**
+
 ```
-File → Invalidate Caches / Restart → Invalidate and Restart
+File -> Invalidate Caches / Restart -> Invalidate and Restart
 ```
 
 ### 依赖下载慢
 
 **解决：** 在 `settings.gradle.kts` 中添加阿里云镜像：
+
 ```kotlin
 pluginManagement {
     repositories {
@@ -118,46 +132,52 @@ pluginManagement {
 ### 编译错误
 
 **检查：**
+
 1. JDK 版本是否为 17
 2. Kotlin 插件是否最新
 3. Compose 编译器版本是否匹配
 
----
+### 模型文件缺失
 
-## 📝 功能说明
-
-### 当前实现
-
-- ✅ Material Design 3 界面
-- ✅ 图片选择和预览
-- ✅ ML Kit 人脸检测
-- ✅ 阈值调节
-- ✅ 日志显示
-
-### 待实现
-
-- 🔄 模板加载（npz 文件解析）
-- 🔄 人脸特征比对
-- 🔄 结果图片标注
-- 🔄 相机实时识别
+**解决：** 将 `det_10g.onnx` 和 `w600k_r50.onnx` 复制到 `app/src/main/assets/` 目录
 
 ---
 
-## 🎯 下一步开发
+## 功能说明
 
-1. **集成 InsightFace**
-   - 使用 TensorFlow Lite 转换模型
-   - 或调用 Python 后端 API
+### 已实现功能
 
-2. **添加相机功能**
+- [x] Material Design 3 界面
+- [x] 图片选择和预览
+- [x] ONNX Runtime 人脸检测与识别
+- [x] NPZ 模板导入与管理
+- [x] 识别历史记录
+- [x] 视频人脸识别
+- [x] 结果图片/视频保存到相册
+- [x] 深色/浅色主题切换
+- [x] 相似度阈值调节
+
+### 开发计划
+
+- [ ] CameraX 实时相机识别
+- [ ] 多语言国际化
+- [ ] 批量图片处理
+
+---
+
+## 下一步开发
+
+1. **相机功能**
    - 使用 CameraX 库
    - 实时预览和识别
+   - 帧率优化
 
-3. **优化性能**
-   - 图片压缩
-   - 异步处理
-   - 缓存机制
+2. **性能优化**
+   - NNAPI 加速
+   - 模型量化
+   - 多线程推理
 
----
-
-**Happy Coding! 🚀**
+3. **功能扩展**
+   - 人脸属性检测（年龄、性别）
+   - 多人脸跟踪
+   - 云端模板同步
