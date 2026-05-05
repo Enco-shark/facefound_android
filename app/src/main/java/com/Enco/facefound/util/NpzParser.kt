@@ -597,7 +597,7 @@ object NpzParser {
             }
 
             dataInput.close()
-            Log.d(TAG, "NPY 解析完成: ${result?.size ?: 0} 个 float, shape=$shape, dtype=$dtype")
+            Log.d(TAG, "NPY 解析完成: ${result.size} 个 float, shape=$shape, dtype=$dtype")
             Pair(shape, result)
 
         } catch (e: Exception) {

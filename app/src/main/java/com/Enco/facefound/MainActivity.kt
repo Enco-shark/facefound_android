@@ -27,12 +27,14 @@ class MainActivity : ComponentActivity() {
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        // 权限结果回调，检查是否所有必要权限都已授予
-        val allGranted = permissions.values.all { it }
-        if (allGranted) {
-            initializeViewModelIfNeeded()
-        } else {
-            // 即使权限被拒绝，也尝试初始化（某些功能可能受限）
+        try {
+            val allGranted = if (permissions.isNotEmpty()) permissions.values.all { it } else false
+            if (allGranted) {
+                initializeViewModelIfNeeded()
+            } else {
+                initializeViewModelIfNeeded()
+            }
+        } catch (_: Exception) {
             initializeViewModelIfNeeded()
         }
     }

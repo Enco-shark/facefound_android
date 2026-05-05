@@ -10,14 +10,18 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.Enco.facefound.ml.OnnxFaceRecognition
 import com.Enco.facefound.util.NpzParser
 import com.Enco.facefound.util.TemplateRepository
+import com.Enco.facefound.video.VideoProcessor
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -49,11 +53,20 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
         val templateList: List<TemplateItem> = emptyList(),
         val recognitionHistory: List<RecognitionHistoryItem> = emptyList(),
         val isCameraEnabled: Boolean = true,
-        val imageDownsample: Boolean = true
+        val imageDownsample: Boolean = true,
+        val videoUri: Uri? = null,
+        val videoInfo: VideoProcessor.VideoInfo? = null,
+        val videoThreshold: Float = 0.35f,
+        val videoSampleRate: Int = 1,
+        val videoProcessingState: VideoProcessingState = VideoProcessingState.Idle,
+        val videoProgress: Float = 0f,
+        val videoProcessedCount: Int = 0,
+        val videoProcessedFrames: List<VideoFrameResult> = emptyList(),
+        val outputVideoUri: Uri? = null
     )
 
     enum class Screen {
-        Main, Camera, Templates, History, Settings
+        Main, Camera, Video, Templates, History, Settings
     }
 
     data class TemplateItem(
@@ -84,6 +97,20 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
         val processingTimeMs: Long = 0
     )
 
+    sealed class VideoProcessingState {
+        data object Idle : VideoProcessingState()
+        data object Processing : VideoProcessingState()
+        data class Encoding(val message: String? = null) : VideoProcessingState()
+        data object Completed : VideoProcessingState()
+        data class Error(val message: String) : VideoProcessingState()
+    }
+
+    data class VideoFrameResult(
+        val frameIndex: Int,
+        val detections: List<OnnxFaceRecognition.FaceDetection> = emptyList(),
+        val names: List<String> = emptyList()
+    )
+
     // --- 状态管理 ---
 
     private val _uiState = MutableStateFlow(UiState())
@@ -92,6 +119,8 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
     private var faceRecognizer: OnnxFaceRecognition? = null
     private var templates: Map<String, FloatArray> = emptyMap()
     private val templateRepo by lazy { TemplateRepository(application) }
+    private var videoProcessor: VideoProcessor? = null
+    private var videoJob: Job? = null
 
     companion object {
         private const val TAG = "FaceRecognitionVM"
@@ -206,10 +235,6 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
 
         viewModelScope.launch {
             val parsedTemplates = NpzParser.parseFromUri(appContext, uri)
-
-            val templateList = parsedTemplates.map { (name, embedding) ->
-                TemplateItem(name, embedding)
-            }
 
             if (parsedTemplates.isNotEmpty()) {
                 val mergedTemplates = templates.toMutableMap().apply {
@@ -521,6 +546,255 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
         addLog("🗑️ 识别历史已清空")
     }
 
+    // --- 视频识别功能 ---
+
+    fun setVideoUri(uri: Uri) {
+        val appContext = getApplication<Application>()
+        if (videoProcessor == null) {
+            videoProcessor = VideoProcessor(faceRecognizer ?: return)
+        }
+
+        val info = videoProcessor?.getVideoInfo(appContext, uri)
+        _uiState.update {
+            it.copy(
+                videoUri = uri,
+                videoInfo = info,
+                videoProcessingState = VideoProcessingState.Idle,
+                videoProgress = 0f,
+                videoProcessedCount = 0,
+                videoProcessedFrames = emptyList(),
+                outputVideoUri = null
+            )
+        }
+        addLog("🎬 已加载视频: ${uri.lastPathSegment}")
+        if (info != null) {
+            addLog("📐 视频信息: ${info.width}x${info.height}, ${info.durationMs}ms")
+        }
+    }
+
+    fun updateVideoThreshold(value: Float) {
+        _uiState.update { it.copy(videoThreshold = value) }
+    }
+
+    fun updateVideoSampleRate(value: Int) {
+        _uiState.update { it.copy(videoSampleRate = value.coerceIn(1, 5)) }
+    }
+
+    fun startVideoProcessing() {
+        val appContext = getApplication<Application>()
+        val currentState = _uiState.value
+
+        if (currentState.videoUri == null) {
+            addLog("⚠️ 请先选择视频文件")
+            return
+        }
+
+        if (!currentState.isModelLoaded) {
+            addLog("⚠️ 模型未加载")
+            return
+        }
+
+        videoJob?.cancel()
+        videoJob = viewModelScope.launch {
+            val processor = videoProcessor ?: run {
+                addLog("❌ 视频处理器未初始化")
+                return@launch
+            }
+
+            _uiState.update {
+                it.copy(
+                    videoProcessingState = VideoProcessingState.Processing,
+                    videoProgress = 0f,
+                    videoProcessedCount = 0,
+                    videoProcessedFrames = emptyList(),
+                    outputVideoUri = null
+                )
+            }
+            addLog("🎬 开始视频人脸识别...")
+
+            try {
+                val processedFrames = mutableListOf<VideoProcessor.ProcessedFrame>()
+                val frameResults = mutableListOf<VideoFrameResult>()
+                var lastUiUpdateCount = 0
+                val uiUpdateInterval = 5
+
+                processor.processVideoFrames(
+                    context = appContext,
+                    videoUri = currentState.videoUri,
+                    templates = templates,
+                    threshold = currentState.videoThreshold,
+                    onProgress = { progress ->
+                        if (!coroutineContext.isActive) return@processVideoFrames
+                        val count = progress.frameIndex + 1
+                        if (count - lastUiUpdateCount >= uiUpdateInterval) {
+                            lastUiUpdateCount = count
+                            _uiState.update {
+                                it.copy(videoProcessedCount = count)
+                            }
+                        }
+                    }
+                ).collect { processedFrame ->
+                    if (!coroutineContext.isActive) return@collect
+
+                    processedFrames.add(processedFrame)
+                    frameResults.add(
+                        VideoFrameResult(
+                            frameIndex = processedFrame.frameIndex,
+                            detections = processedFrame.detections,
+                            names = processedFrame.names
+                        )
+                    )
+
+                    val count = processedFrames.size
+                    if (count - lastUiUpdateCount >= uiUpdateInterval) {
+                        lastUiUpdateCount = count
+                        _uiState.update {
+                            it.copy(
+                                videoProcessedCount = count,
+                                videoProcessedFrames = frameResults.toList(),
+                                videoProgress = processedFrame.presentationTimeUs.toFloat() /
+                                    ((currentState.videoInfo?.durationMs ?: 1L) * 1000).coerceAtLeast(1)
+                            )
+                        }
+                    }
+                }
+
+                if (!coroutineContext.isActive) return@launch
+
+                _uiState.update {
+                    it.copy(
+                        videoProcessedCount = processedFrames.size,
+                        videoProcessedFrames = frameResults.toList(),
+                        videoProgress = 1f
+                    )
+                }
+
+                addLog("✅ 帧处理完成，共 ${processedFrames.size} 帧，开始编码视频...")
+
+                _uiState.update {
+                    it.copy(
+                        videoProcessingState = VideoProcessingState.Encoding("正在编码输出视频...")
+                    )
+                }
+
+                val outputFile = File(
+                    appContext.cacheDir,
+                    "FaceFound_video_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())}.mp4"
+                )
+
+                val videoInfo = currentState.videoInfo
+                val outWidth = videoInfo?.width ?: processedFrames.firstOrNull()?.bitmap?.width ?: 1920
+                val outHeight = videoInfo?.height ?: processedFrames.firstOrNull()?.bitmap?.height ?: 1080
+
+                val resultFile = processor.encodeToVideo(
+                    frames = processedFrames,
+                    outputFile = outputFile,
+                    width = outWidth,
+                    height = outHeight,
+                    onProgress = { progress ->
+                        _uiState.update {
+                            it.copy(
+                                videoProgress = progress,
+                                videoProcessingState = VideoProcessingState.Encoding("编码中... ${(progress * 100).toInt()}%")
+                            )
+                        }
+                    }
+                )
+
+                // Copy to shared storage
+                val savedUri = saveVideoToGallery(appContext, resultFile)
+
+                _uiState.update {
+                    it.copy(
+                        videoProcessingState = VideoProcessingState.Completed,
+                        videoProgress = 1f,
+                        videoProcessedCount = processedFrames.size,
+                        videoProcessedFrames = frameResults.toList(),
+                        outputVideoUri = savedUri
+                    )
+                }
+                addLog("✅ 视频识别完成! 已保存到相册")
+
+            } catch (e: Exception) {
+                if (!coroutineContext.isActive) return@launch
+                Log.e(TAG, "视频处理失败", e)
+                _uiState.update {
+                    it.copy(
+                        videoProcessingState = VideoProcessingState.Error(e.message ?: "未知错误")
+                    )
+                }
+                addLog("❌ 视频处理失败: ${e.message}")
+            }
+        }
+    }
+
+    fun cancelVideoProcessing() {
+        videoJob?.cancel()
+        videoJob = null
+        _uiState.update {
+            it.copy(
+                videoProcessingState = VideoProcessingState.Idle,
+                videoProgress = 0f
+            )
+        }
+        addLog("⏹️ 已取消视频处理")
+    }
+
+    fun saveVideoResult() {
+        val appContext = getApplication<Application>()
+        val outputUri = _uiState.value.outputVideoUri
+        if (outputUri != null) {
+            addLog("💾 视频已保存: $outputUri")
+            _uiState.update { it.copy(statusMessage = "视频已保存到相册") }
+            return
+        }
+
+        addLog("⚠️ 没有可保存的视频结果")
+    }
+
+    private fun saveVideoToGallery(context: Context, videoFile: File): Uri? {
+        return try {
+            val fileName = videoFile.name
+            val resolver = context.contentResolver
+            val contentValues = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Video.Media.DISPLAY_NAME, fileName)
+                put(android.provider.MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(android.provider.MediaStore.Video.Media.RELATIVE_PATH, "Movies/FaceFound")
+                    put(android.provider.MediaStore.Video.Media.IS_PENDING, 1)
+                }
+            }
+
+            val uri = resolver.insert(
+                android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                contentValues
+            )
+
+            if (uri != null) {
+                resolver.openOutputStream(uri)?.use { out ->
+                    videoFile.inputStream().use { input ->
+                        input.copyTo(out)
+                    }
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    contentValues.clear()
+                    contentValues.put(android.provider.MediaStore.Video.Media.IS_PENDING, 0)
+                    resolver.update(uri, contentValues, null, null)
+                }
+
+                addLog("💾 视频已保存到 Movies/FaceFound: $fileName")
+                uri
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "保存视频到相册失败: ${e.message}")
+            addLog("❌ 保存视频失败: ${e.message}")
+            null
+        }
+    }
+
     // --- 辅助函数 ---
 
     private suspend fun loadBitmapFromUri(context: Context, uri: Uri): Bitmap? =
@@ -553,6 +827,8 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
 
     override fun onCleared() {
         super.onCleared()
+        videoJob?.cancel()
+        videoJob = null
         try {
             faceRecognizer?.close()
         } catch (_: Exception) {}

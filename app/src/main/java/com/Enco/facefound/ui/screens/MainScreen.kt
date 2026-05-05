@@ -1,8 +1,6 @@
 package com.Enco.facefound.ui.screens
 
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,20 +19,25 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Camera
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -44,6 +47,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -68,10 +72,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import coil.compose.AsyncImage
 import com.Enco.facefound.BuildConfig
 import com.Enco.facefound.ui.viewmodel.FaceRecognitionViewModel
@@ -166,6 +175,12 @@ fun MainScreen(
                 FaceRecognitionViewModel.Screen.Camera -> {
                     Text("相机功能开发中...", modifier = Modifier.padding(paddingValues))
                 }
+                FaceRecognitionViewModel.Screen.Video -> {
+                    VideoScreen(
+                        viewModel = viewModel,
+                        modifier = Modifier.padding(paddingValues)
+                    )
+                }
             }
         }
     }
@@ -180,26 +195,63 @@ fun DrawerContent(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val screens = listOf(
-        FaceRecognitionViewModel.Screen.Main to "主页",
-        FaceRecognitionViewModel.Screen.Templates to "模板管理",
-        FaceRecognitionViewModel.Screen.History to "识别历史",
-        FaceRecognitionViewModel.Screen.Settings to "设置"
+        FaceRecognitionViewModel.Screen.Main to ("主页" to Icons.Default.Image),
+        FaceRecognitionViewModel.Screen.Video to ("视频识别" to Icons.Default.Videocam),
+        FaceRecognitionViewModel.Screen.Templates to ("模板管理" to Icons.Default.Folder),
+        FaceRecognitionViewModel.Screen.History to ("识别历史" to Icons.Default.History),
+        FaceRecognitionViewModel.Screen.Settings to ("设置" to Icons.Default.Settings)
     )
 
     Column(
         Modifier
             .fillMaxHeight()
-            .padding(vertical = 24.dp)
+            .background(MaterialTheme.colorScheme.surface)
     ) {
-        Text(
-            "FaceFound",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 24.dp, bottom = 24.dp)
-        )
-        screens.forEach { (screen, title) ->
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
+                .padding(24.dp)
+                .padding(top = 40.dp)
+        ) {
+            Column {
+                Box(
+                    Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Image,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "FaceFound",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "离线人脸识别",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+        Spacer(Modifier.height(8.dp))
+
+        screens.forEachIndexed { index, (screen, pair) ->
+            val (title, icon) = pair
             DrawerMenuItem(
                 title = title,
+                icon = icon,
                 screen = screen,
                 currentScreen = uiState.currentScreen,
                 onClick = {
@@ -208,42 +260,62 @@ fun DrawerContent(
                 }
             )
         }
+
+        Spacer(Modifier.weight(1f))
+
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+        Text(
+            "v${BuildConfig.VERSION_NAME}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(16.dp)
+        )
     }
 }
 
 @Composable
 fun DrawerMenuItem(
     title: String,
+    icon: ImageVector,
     screen: FaceRecognitionViewModel.Screen,
     currentScreen: FaceRecognitionViewModel.Screen,
     onClick: () -> Unit
 ) {
     val isSelected = screen == currentScreen
-    val icon = when (screen) {
-        FaceRecognitionViewModel.Screen.Main -> Icons.Default.Image
-        FaceRecognitionViewModel.Screen.Camera -> Icons.Default.Camera
-        FaceRecognitionViewModel.Screen.Templates -> Icons.Default.Folder
-        FaceRecognitionViewModel.Screen.History -> Icons.Default.History
-        FaceRecognitionViewModel.Screen.Settings -> Icons.Default.Settings
-    }
+    val bgColor by animateColorAsState(
+        if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+        else Color.Transparent,
+        label = "drawerBg"
+    )
+    val contentColor by animateColorAsState(
+        if (isSelected) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.onSurface,
+        label = "drawerContent"
+    )
 
     Row(
         Modifier
             .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(bgColor)
             .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             icon,
             contentDescription = title,
-            tint = if (isSelected) MaterialTheme.colorScheme.primary else Color.Unspecified
+            tint = contentColor,
+            modifier = Modifier.size(24.dp)
         )
         Spacer(Modifier.width(16.dp))
         Text(
             title,
             style = MaterialTheme.typography.bodyLarge,
-            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Unspecified
+            color = contentColor,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
         )
     }
 }
@@ -323,87 +395,95 @@ fun TemplatesScreen(
         uri?.let { viewModel.setTemplate(it) }
     }
 
-    Column(modifier.padding(16.dp)) {
-        Text(
-            "模板管理",
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+    LazyColumn(modifier.padding(16.dp)) {
+        item {
+            Text(
+                "模板管理",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+        }
 
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = { templatePicker.launch("*/*") },
-                modifier = Modifier.weight(1f)
+        item {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(Icons.Default.Folder, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("导入 NPZ")
-            }
-            if (uiState.templateList.isNotEmpty()) {
-                OutlinedButton(
-                    onClick = { showClearDialog = true },
+                Button(
+                    onClick = { templatePicker.launch("*/*") },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Default.Delete, contentDescription = null)
+                    Icon(Icons.Default.Folder, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("清空全部")
+                    Text("导入 NPZ")
+                }
+                if (uiState.templateList.isNotEmpty()) {
+                    OutlinedButton(
+                        onClick = { showClearDialog = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("清空全部")
+                    }
                 }
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        item { Spacer(Modifier.height(12.dp)) }
 
         if (uiState.templateList.isEmpty()) {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(Modifier.padding(24.dp)) {
-                    Text(
-                        "暂无模板",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "请导入 NPZ 模板文件，导入后将自动持久化保存",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(24.dp)) {
+                        Text(
+                            "暂无模板",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "请导入 NPZ 模板文件，导入后将自动持久化保存",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         } else {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp)
-            ) {
-                Row(
-                    Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
                 ) {
-                    Icon(
-                        Icons.Default.Folder,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "${uiState.templateList.size} 个模板已持久化 · 下次启动无需重新导入",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Folder,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "${uiState.templateList.size} 个模板已持久化 · 下次启动无需重新导入",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
-            uiState.templateList.forEach { template ->
+            items(uiState.templateList, key = { it.name }) { template ->
                 TemplateItemCard(
                     template = template,
                     onDelete = { showDeleteDialog = it },
@@ -540,41 +620,43 @@ fun HistoryScreen(
     val uiState by viewModel.uiState.collectAsState()
     var showClearDialog by remember { mutableStateOf(false) }
 
-    Column(modifier.padding(16.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                "识别历史",
-                style = MaterialTheme.typography.headlineSmall
-            )
-            if (uiState.recognitionHistory.isNotEmpty()) {
-                Button(onClick = { showClearDialog = true }) {
-                    Icon(Icons.Default.Clear, contentDescription = "清空")
-                    Spacer(Modifier.width(4.dp))
-                    Text("清空")
+    LazyColumn(modifier.padding(16.dp)) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "识别历史",
+                    style = MaterialTheme.typography.headlineSmall
+                )
+                if (uiState.recognitionHistory.isNotEmpty()) {
+                    Button(onClick = { showClearDialog = true }) {
+                        Icon(Icons.Default.Clear, contentDescription = "清空")
+                        Spacer(Modifier.width(4.dp))
+                        Text("清空")
+                    }
                 }
             }
         }
 
-        Spacer(Modifier.height(16.dp))
-
         if (uiState.recognitionHistory.isEmpty()) {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    "暂无识别历史",
-                    modifier = Modifier.padding(24.dp)
-                )
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "暂无识别历史",
+                        modifier = Modifier.padding(24.dp)
+                    )
+                }
             }
         } else {
-            uiState.recognitionHistory.forEach { item ->
+            items(uiState.recognitionHistory, key = { it.id }) { item ->
                 HistoryItemCard(item)
             }
         }
@@ -668,24 +750,41 @@ fun SettingsScreen(
 
         item {
             SettingGroup(title = "识别设置") {
-                Column(Modifier.padding(vertical = 8.dp)) {
-                    Text(
-                        "相似度阈值: ${String.format("%.2f", uiState.threshold)}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                Column(Modifier.padding(vertical = 4.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("相似度阈值", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            String.format("%.2f", uiState.threshold),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     Slider(
                         value = uiState.threshold,
                         onValueChange = { viewModel.updateThreshold(it) },
                         valueRange = 0.0f..1.0f,
-                        steps = 99
+                        steps = 99,
+                        modifier = Modifier.padding(vertical = 4.dp)
                     )
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("宽松", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("严格", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 12.dp),
+                        .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -715,7 +814,8 @@ fun SettingGroup(title: String, content: @Composable () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 6.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
@@ -723,9 +823,10 @@ fun SettingGroup(title: String, content: @Composable () -> Unit) {
         Column(Modifier.padding(16.dp)) {
             Text(
                 title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 8.dp)
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 12.dp)
             )
             content()
         }
@@ -736,17 +837,34 @@ fun SettingGroup(title: String, content: @Composable () -> Unit) {
 
 @Composable
 fun StatusCard(statusMessage: String, isReady: Boolean) {
+    val containerColor = if (isReady)
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+    else
+        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+
     Card(
-        colors = CardDefaults.cardColors(
-            containerColor = if (isReady) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer
-        ),
-        modifier = Modifier.fillMaxWidth()
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp)
     ) {
-        Text(
-            statusMessage,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(16.dp)
-        )
+        Row(
+            Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                if (isReady) Icons.Default.CheckCircle else Icons.Default.Info,
+                contentDescription = null,
+                tint = if (isReady) MaterialTheme.colorScheme.primary
+                       else MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                statusMessage,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 
@@ -759,6 +877,7 @@ fun ImagePreviewCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
@@ -766,7 +885,7 @@ fun ImagePreviewCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(300.dp),
+                .height(320.dp),
             contentAlignment = Alignment.Center
         ) {
             when {
@@ -776,16 +895,6 @@ fun ImagePreviewCard(
                         contentDescription = "识别结果",
                         modifier = Modifier.fillMaxSize()
                     )
-                    Button(
-                        onClick = onReselectImage,
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(8.dp)
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = null)
-                        Spacer(Modifier.width(4.dp))
-                        Text("重新选择")
-                    }
                 }
                 imageUri != null -> {
                     AsyncImage(
@@ -793,16 +902,6 @@ fun ImagePreviewCard(
                         contentDescription = "预览图片",
                         modifier = Modifier.fillMaxSize()
                     )
-                    Button(
-                        onClick = onReselectImage,
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(8.dp)
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = null)
-                        Spacer(Modifier.width(4.dp))
-                        Text("重新选择")
-                    }
                 }
                 else -> {
                     IconButton(onClick = onSelectImage, modifier = Modifier.fillMaxSize()) {
@@ -810,11 +909,30 @@ fun ImagePreviewCard(
                             Icon(
                                 Icons.Default.Image,
                                 contentDescription = "选择图片",
-                                modifier = Modifier.size(64.dp)
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Text("点击选择图片")
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "点击选择图片",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
+                }
+            }
+
+            if (imageUri != null || resultBitmap != null) {
+                Button(
+                    onClick = onReselectImage,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(12.dp),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("重新选择", style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
@@ -831,21 +949,25 @@ fun ControlPanel(
     canSave: Boolean
 ) {
     Card(
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(16.dp)) {
-            Row(Modifier.fillMaxWidth()) {
-                OutlinedButton(
-                    onClick = onLoadTemplate,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Default.Folder, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text(templateName ?: "加载模板")
-                }
+            OutlinedButton(
+                onClick = onLoadTemplate,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    templateName ?: "加载模板",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
 
             Spacer(Modifier.height(12.dp))
@@ -857,24 +979,30 @@ fun ControlPanel(
                 Button(
                     onClick = onRecognize,
                     enabled = !isProcessing,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
                 ) {
                     if (isProcessing) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
                     } else {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null)
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                     }
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(6.dp))
                     Text(if (isProcessing) "识别中..." else "开始识别")
                 }
 
                 Button(
                     onClick = onSaveImage,
                     enabled = canSave,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
                 ) {
-                    Icon(Icons.Default.Save, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
+                    Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
                     Text("保存")
                 }
             }
