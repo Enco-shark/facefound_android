@@ -52,7 +52,7 @@ Single `:app` module. Source root: `app/src/main/java/com/Enco/facefound/`
 - Detection: SCRFD model, 640x640 RGB input, BGR channel order, `(pixel - 127.5) / 128.0` normalization
 - Alignment: 5-point similarity transform to ArcFace 112x112 template
 - Recognition: ArcFace model, 112x112 RGB input → 512-dim L2-normalized embedding
-- Matching: cosine similarity (dot product on L2-normed vectors), default threshold 0.45
+- Matching: cosine similarity (dot product on L2-normed vectors), default threshold 0.30
 - Parallel: multi-face async with `Semaphore(2)` for ONNX inference concurrency
 
 ## Gotchas
