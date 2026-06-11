@@ -24,13 +24,10 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 // 导入 withContext 函数，用于在协程中切换线程上下文
 import kotlinx.coroutines.withContext
-// 导入 async 函数，用于启动并行协程
+// 并行处理：async/coroutineScope 用于多张人脸并行，Semaphore 限制 ONNX 推理并发
 import kotlinx.coroutines.async
-// 导入 coroutineScope 函数，用于创建结构化协程作用域
 import kotlinx.coroutines.coroutineScope
-// 导入 Semaphore 类，用于限制 ONNX 推理并发数（Session.run 非线程安全）
 import kotlinx.coroutines.sync.Semaphore
-// 导入 withPermit 扩展函数，用于在信号量保护下执行代码块
 import kotlinx.coroutines.sync.withPermit
 // 导入 File 类，用于文件系统操作（模型缓存文件的读写）
 import java.io.File
@@ -975,67 +972,56 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
      * 并行识别多张人脸
      * 对齐(CPU) 和模板匹配(CPU) 完全并行，ONNX 推理通过信号量限制并发数
      */
-    // 挂起函数：并行处理多张人脸的检测→对齐→识别全流程
-    suspend fun recognizeFacesParallel( // 定义并行识别函数
-        sourceBitmap: Bitmap, // 传入原始图片位图（包含多张人脸）
-        detections: List<FaceDetection>, // 传入检测到的人脸列表（边界框+关键点）
-        templates: Map<String, FloatArray>, // 传入人脸模板库（名称→特征向量）
-        threshold: Float = 0.45f, // 传入识别相似度阈值，默认 0.45
-        maxConcurrency: Int = 2 // 传入最大并发数，默认 2（平衡速度与内存）
-    ): List<RecognitionResult> = coroutineScope { // 使用 coroutineScope 确保所有子协程完成后才返回
-        // 如果没有检测到人脸，直接返回空列表
-        if (detections.isEmpty()) return@coroutineScope emptyList() // 快速退出条件
-        // 单张人脸时走原有顺序路径，避免并行开销
-        if (detections.size == 1) { // 检测到 1 张人脸
-            // 对齐人脸（纯 CPU 操作）
-            val faceBitmap = alignFace(sourceBitmap, detections[0]) // 调用 5 点对齐
-            if (faceBitmap == null) { // 对齐失败
-                return@coroutineScope listOf(RecognitionResult("UNKNOWN", 0f)) // 返回未知识别结果
-            } // 对齐失败处理结束
-            try { // 尝试执行识别
-                return@coroutineScope listOf(recognizeFace(faceBitmap, templates, threshold)) // 顺序识别并返回
-            } finally { // 无论成功与否都执行清理
-                faceBitmap.recycle() // 释放对齐后的位图内存
-            } // try-finally 结束
-        } // 单张人脸处理结束
+    suspend fun recognizeFacesParallel(
+        sourceBitmap: Bitmap,
+        detections: List<FaceDetection>,
+        templates: Map<String, FloatArray>,
+        threshold: Float = 0.45f,
+        maxConcurrency: Int = 2
+    ): List<RecognitionResult> = coroutineScope {
+        if (detections.isEmpty()) return@coroutineScope emptyList()
+        // 单张人脸走原有顺序路径，无并行开销
+        if (detections.size == 1) {
+            val faceBitmap = alignFace(sourceBitmap, detections[0])
+            if (faceBitmap == null) return@coroutineScope listOf(RecognitionResult("UNKNOWN", 0f))
+            try {
+                return@coroutineScope listOf(recognizeFace(faceBitmap, templates, threshold))
+            } finally {
+                faceBitmap.recycle()
+            }
+        }
 
-        // 创建信号量，限制 ONNX 推理的并发数（Session.run 非线程安全）
-        val semaphore = Semaphore(maxConcurrency) // 信号量：同一时刻最多 maxConcurrency 个推理
-        // 记录并行处理开始时间
-        val startTime = System.currentTimeMillis() // 用于计算总耗时
+        // 信号量限制 ONNX 推理并发数（Session.run 非线程安全）
+        val semaphore = Semaphore(maxConcurrency)
+        val startTime = System.currentTimeMillis()
 
-        // 为每张人脸创建一个 async 协程，并行执行对齐和识别
-        val deferreds = detections.mapIndexed { index, detection -> // 遍历检测结果，创建异步任务
-            async(Dispatchers.Default) { // 在 Default 调度器上启动并行协程
-                var faceBitmap: Bitmap? = null // 声明对齐后的人脸位图变量
-                try { // 尝试执行对齐和识别
-                    // 对齐是纯 CPU 操作，不需要信号量保护，可完全并行
-                    faceBitmap = alignFace(sourceBitmap, detection) // 并行执行 5 点对齐
-                    if (faceBitmap == null) { // 对齐失败
-                        Log.w(TAG, "并行识别: 人脸 ${index + 1} 对齐失败") // 记录警告日志
-                        return@async RecognitionResult("UNKNOWN", 0f) // 返回未知识别结果
-                    } // 对齐失败处理结束
-                    // ONNX 推理需要信号量保护（Session.run 非线程安全）
-                    semaphore.withPermit { // 获取信号量许可（阻塞等待直到有空闲槽位）
-                        recognizeFace(faceBitmap, templates, threshold) // 执行特征提取+模板匹配
-                    } // 信号量释放（自动在 withPermit 块结束后释放）
-                } catch (e: Exception) { // 捕获对齐或识别过程中的异常
-                    Log.e(TAG, "并行识别: 人脸 ${index + 1} 失败: ${e.message}", e) // 记录错误日志
-                    RecognitionResult("UNKNOWN", 0f) // 返回未知识别结果
-                } finally { // 无论成功与否都执行清理
-                    faceBitmap?.recycle() // 释放对齐后的位图内存（安全调用，null 时不执行）
-                } // try-catch-finally 结束
-            } // async 协程结束
-        } // 人脸遍历结束，所有 async 任务已启动
+        // 每张人脸一个 async：对齐完全并行，推理受信号量保护
+        val deferreds = detections.mapIndexed { index, detection ->
+            async(Dispatchers.Default) {
+                var faceBitmap: Bitmap? = null
+                try {
+                    faceBitmap = alignFace(sourceBitmap, detection)
+                    if (faceBitmap == null) {
+                        Log.w(TAG, "并行识别: 人脸 ${index + 1} 对齐失败")
+                        return@async RecognitionResult("UNKNOWN", 0f)
+                    }
+                    semaphore.withPermit {
+                        recognizeFace(faceBitmap, templates, threshold)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "并行识别: 人脸 ${index + 1} 失败: ${e.message}", e)
+                    RecognitionResult("UNKNOWN", 0f)
+                } finally {
+                    faceBitmap?.recycle()
+                }
+            }
+        }
 
-        // 等待所有并行任务完成，收集结果
-        val results = deferreds.map { it.await() } // 阻塞等待每个 async 返回结果
-        // 计算并行处理总耗时
-        val elapsed = System.currentTimeMillis() - startTime // 总耗时（毫秒）
-        // 记录并行识别完成的日志
-        Log.d(TAG, "并行识别完成: ${detections.size} 张人脸, 耗时 ${elapsed}ms, 并发上限=$maxConcurrency") // 输出性能日志
-        results // 返回所有识别结果列表
-    } // recognizeFacesParallel 函数结束
+        val results = deferreds.map { it.await() }
+        val elapsed = System.currentTimeMillis() - startTime
+        Log.d(TAG, "并行识别完成: ${detections.size} 张人脸, 耗时 ${elapsed}ms, 并发上限=$maxConcurrency")
+        results
+    }
 
     // 私有方法：确保 Bitmap 为软件渲染格式（非 HARDWARE），以便读取像素
     private fun ensureSoftware(bitmap: Bitmap): Bitmap {
