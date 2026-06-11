@@ -229,7 +229,6 @@ class VideoProcessor(private val faceRecognizer: OnnxFaceRecognition) { // 视�
 
         val totalFrames = frames.size // 总帧数
         var muxerStarted = false // 标记复用器是否已启动
-        var trackIndex = -1 // 轨道索引
         var frameIdx = 0 // 已编码帧计数
 
         try { // 异常保护
@@ -285,9 +284,8 @@ class VideoProcessor(private val faceRecognizer: OnnxFaceRecognition) { // 视�
                 encoder.queueInputBuffer(eosIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM) // 发送流结束标记
             }
 
-            drainEncoderFinal(encoder, muxer) { started, idx -> // 排出剩余编码数据
+            drainEncoderFinal(encoder, muxer) { started, _ -> // 排出剩余编码数据
                 muxerStarted = started // 更新复用器状态
-                trackIndex = idx // 更新轨道索引
             }
 
             tempBitmap.recycle() // 释放临时位图

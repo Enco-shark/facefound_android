@@ -42,7 +42,7 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
         val resultBitmap: Bitmap? = null, // 识别结果绘制后的位图，包含检测框和名称标注
         val templateName: String? = null, // 当前加载的模板文件名称
         val templateUri: Uri? = null, // 当前加载的模板文件URI地址
-        val threshold: Float = 0.45f, // 人脸识别的相似度阈值，高于此值才判定为匹配
+        val threshold: Float = 0.3f, // 人脸识别的相似度阈值，高于此值才判定为匹配
         val detectionThreshold: Float = 0.5f, // 人脸检测的置信度阈值，低于此值的检测框被过滤
         val isProcessing: Boolean = false, // 标记是否正在处理识别任务中
         val logs: List<String> = emptyList(), // 运行日志列表，记录操作过程中的所有事件
@@ -722,7 +722,7 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
                 _uiState.update { // 更新UI状态
                     it.copy( // 复制当前状态并修改以下字段
                         videoProcessingState = VideoProcessingState.Completed, // 设置视频处理状态为完成
-                        videoProgress = 1f // 设置进度为100%
+                        videoProgress = 1f, // 设置进度为100%
                         videoProcessedCount = processedFrames.size, // 更新已处理帧数为最终总数
                         videoProcessedFrames = frameResults.toList(), // 更新已处理帧结果为最终完整列表
                         outputVideoUri = savedUri // 设置输出视频的URI
@@ -756,7 +756,6 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
     } // 结束cancelVideoProcessing函数
 
     fun saveVideoResult() { // 保存视频结果函数
-        val appContext = getApplication<Application>() // 获取应用上下文
         val outputUri = _uiState.value.outputVideoUri // 获取输出视频的URI
         if (outputUri != null) { // 如果输出视频URI不为空（视频已保存）
             addLog("💾 视频已保存: $outputUri") // 记录视频已保存的日志

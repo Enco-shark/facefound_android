@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,6 +47,7 @@ private const val TAG = "CameraScreen"
  * 实时摄像头人脸识别主界面
  * 包含摄像头预览、人脸叠加层和底部状态栏
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CameraScreen(
     viewModel: FaceRecognitionViewModel,
@@ -76,7 +78,7 @@ fun CameraScreen(
             title = { Text("实时识别") },
             navigationIcon = {
                 IconButton(onClick = { viewModel.navigateTo(FaceRecognitionViewModel.Screen.Main) }) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
@@ -134,7 +136,6 @@ private fun CameraPreview(
     viewModel: FaceRecognitionViewModel,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
     // 单线程执行器用于帧分析回调
@@ -167,6 +168,7 @@ private fun CameraPreview(
                 }
 
                 // 图像分析用例：640x480 分析分辨率，只保留最新帧
+                @Suppress("DEPRECATION")
                 val imageAnalysis = ImageAnalysis.Builder()
                     .setTargetResolution(Size(640, 480))
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
@@ -181,7 +183,7 @@ private fun CameraPreview(
                             }
                             analysisScope.launch {
                                 try {
-                                    val bitmap = imageProxy.toBitmap()
+                                    val bitmap = imageProxy.yuvToBitmap()
                                     if (bitmap != null) {
                                         viewModel.analyzeCameraFrame(bitmap)
                                         bitmap.recycle()
@@ -320,7 +322,7 @@ private fun CameraStatusBar(faceCount: Int, modifier: Modifier = Modifier) {
  * YUV_420_888 → NV21 → JPEG → Bitmap
  * 正确处理 pixelStride: 当 stride=2 时，V/U buffer 包含交错数据
  */
-private fun ImageProxy.toBitmap(): Bitmap? {
+private fun ImageProxy.yuvToBitmap(): Bitmap? {
     try {
         val yPlane = planes[0]
         val uPlane = planes[1]

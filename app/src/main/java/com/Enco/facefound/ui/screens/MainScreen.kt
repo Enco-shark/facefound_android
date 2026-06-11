@@ -257,7 +257,7 @@ fun DrawerContent( // 定义侧边抽屉内容函数
 
         Spacer(Modifier.height(8.dp)) // 创建8dp的垂直间距
 
-        screens.forEachIndexed { index, (screen, pair) -> // 遍历屏幕列表，获取索引和解构出屏幕枚举及配对
+        screens.forEachIndexed { _, (screen, pair) -> // 遍历屏幕列表，获取索引和解构出屏幕枚举及配对
             val (title, icon) = pair // 从配对中解构出标题文本和图标
             DrawerMenuItem( // 渲染单个抽屉菜单项
                 title = title, // 传入菜单项标题

@@ -904,7 +904,7 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
     suspend fun recognizeFace(
         faceBitmap: Bitmap, // 待识别人脸图像
         templates: Map<String, FloatArray>, // 已注册人脸的特征模板库（名称 -> 特征向量）
-        threshold: Float = 0.45f // 识别阈值，默认 0.45
+        threshold: Float = 0.3f // 识别阈值，默认 0.3
     ): RecognitionResult = withContext(Dispatchers.Default) {
 
         // 检查模板库是否为空
@@ -976,14 +976,13 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
         sourceBitmap: Bitmap,
         detections: List<FaceDetection>,
         templates: Map<String, FloatArray>,
-        threshold: Float = 0.45f,
+        threshold: Float = 0.3f,
         maxConcurrency: Int = 2
     ): List<RecognitionResult> = coroutineScope {
         if (detections.isEmpty()) return@coroutineScope emptyList()
         // 单张人脸走原有顺序路径，无并行开销
         if (detections.size == 1) {
             val faceBitmap = alignFace(sourceBitmap, detections[0])
-            if (faceBitmap == null) return@coroutineScope listOf(RecognitionResult("UNKNOWN", 0f))
             try {
                 return@coroutineScope listOf(recognizeFace(faceBitmap, templates, threshold))
             } finally {
@@ -1001,10 +1000,6 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
                 var faceBitmap: Bitmap? = null
                 try {
                     faceBitmap = alignFace(sourceBitmap, detection)
-                    if (faceBitmap == null) {
-                        Log.w(TAG, "并行识别: 人脸 ${index + 1} 对齐失败")
-                        return@async RecognitionResult("UNKNOWN", 0f)
-                    }
                     semaphore.withPermit {
                         recognizeFace(faceBitmap, templates, threshold)
                     }
