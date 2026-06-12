@@ -38,8 +38,8 @@ Single `:app` module. Source root: `app/src/main/java/com/Enco/facefound/`
 |------|------|
 | `ml/OnnxFaceRecognition.kt` | Core pipeline: detect → align → embed → match. Loads both ONNX models. |
 | `video/VideoProcessor.kt` | Batch video frame processing, H.264 output encoding |
-| `ui/viewmodel/FaceRecognitionViewModel.kt` | State management, orchestrates all flows |
-| `ui/screens/MainScreen.kt` | Main Compose UI, navigation drawer, settings |
+| `ui/viewmodel/FaceRecognitionViewModel.kt` | State management, orchestrates all flows, settings & history persistence via SharedPreferences |
+| `ui/screens/MainScreen.kt` | Main Compose UI, navigation drawer, settings, templates, history screens |
 | `ui/screens/VideoScreen.kt` | Video recognition UI |
 | `ui/screens/AboutScreen.kt` | About page: app info, developers, dependencies, license, links |
 | `util/NpzParser.kt` | NPZ/ZIP template import, NPY parsing, UTF-32LE name decoding |
@@ -66,6 +66,10 @@ Single `:app` module. Source root: `app/src/main/java/com/Enco/facefound/`
 - **`build_tool.py`** is a convenience wrapper (gitignored) that runs Gradle with colored output and logs to `build_logs/`. Use it for cleaner build feedback.
 - **No CI pipeline** — no GitHub Actions, no pre-commit hooks configured.
 - **Release build has `isMinifyEnabled = false`** — no ProGuard shrinking by default.
+- **Settings persistence** — threshold, detectionThreshold, isDarkTheme, imageDownsample, videoThreshold, videoDetectionThreshold, videoSampleRate are saved to SharedPreferences (`facefound_settings`) on every change and restored on startup.
+- **History persistence** — recognition history is saved as JSON in SharedPreferences (`recognition_history`), max 50 entries, loaded on startup.
+- **No camera permission** — CameraX and CAMERA permission were removed. Only storage permissions remain.
+- **`Session.run` is NOT thread-safe** — ONNX inference uses `Semaphore(2)` to limit concurrency. Do not call `detectFaces`/`extractEmbedding` concurrently without the semaphore.
 
 ## Code Style
 
