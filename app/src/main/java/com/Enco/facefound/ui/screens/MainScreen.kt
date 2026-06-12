@@ -23,7 +23,6 @@ import androidx.compose.foundation.lazy.items // 导入items函数，用于在La
 import androidx.compose.foundation.shape.CircleShape // 导入圆形形状，用于裁剪组件为圆形
 import androidx.compose.foundation.shape.RoundedCornerShape // 导入圆角矩形形状，用于设置圆角效果
 import androidx.compose.material.icons.Icons // 导入Material图标集合对象
-import androidx.compose.material.icons.filled.Camera // 导入相机图标
 import androidx.compose.material.icons.filled.CheckCircle // 导入勾选圆圈图标，用于表示成功状态
 import androidx.compose.material.icons.filled.Clear // 导入清除图标，用于清空操作
 import androidx.compose.material.icons.filled.Delete // 导入删除图标，用于删除操作
@@ -176,12 +175,6 @@ fun MainScreen( // 定义主屏幕函数，是应用的顶层UI入口
                         modifier = Modifier.padding(paddingValues) // 应用Scaffold提供的内边距
                     ) // SettingsScreen调用结束
                 } // 设置分支结束
-                FaceRecognitionViewModel.Screen.Camera -> { // 当前屏幕为相机时
-                    CameraScreen( // 渲染实时摄像头识别屏幕
-                        viewModel = viewModel, // 传入ViewModel
-                        modifier = Modifier.padding(paddingValues) // 应用Scaffold提供的内边距
-                    ) // CameraScreen调用结束
-                } // 相机分支结束
                 FaceRecognitionViewModel.Screen.Video -> { // 当前屏幕为视频识别时
                     VideoScreen( // 渲染视频识别屏幕
                         viewModel = viewModel, // 传入ViewModel
@@ -210,7 +203,6 @@ fun DrawerContent( // 定义侧边抽屉内容函数
     val uiState by viewModel.uiState.collectAsState() // 收集ViewModel的UI状态，用于判断当前选中的屏幕
     val screens = listOf( // 定义屏幕列表，包含所有可导航的页面
         FaceRecognitionViewModel.Screen.Main to ("主页" to Icons.Default.Image), // 主页屏幕项，显示图片图标
-        FaceRecognitionViewModel.Screen.Camera to ("实时识别" to Icons.Default.Camera), // 实时识别屏幕项，显示相机图标
         FaceRecognitionViewModel.Screen.Video to ("视频识别" to Icons.Default.Videocam), // 视频识别屏幕项，显示摄像机图标
         FaceRecognitionViewModel.Screen.Templates to ("模板管理" to Icons.Default.Folder), // 模板管理屏幕项，显示文件夹图标
         FaceRecognitionViewModel.Screen.History to ("识别历史" to Icons.Default.History), // 识别历史屏幕项，显示历史图标

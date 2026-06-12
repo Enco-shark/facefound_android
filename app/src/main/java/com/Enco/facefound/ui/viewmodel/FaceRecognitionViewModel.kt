@@ -53,13 +53,6 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
         val currentScreen: Screen = Screen.Main, // 当前显示的页面，默认为主页面
         val templateList: List<TemplateItem> = emptyList(), // 模板列表，展示所有已加载的人脸模板
         val recognitionHistory: List<RecognitionHistoryItem> = emptyList(), // 识别历史记录列表
-        val isCameraEnabled: Boolean = true, // 标记相机功能是否启用
-        val cameraDetections: List<OnnxFaceRecognition.FaceDetection> = emptyList(), // 摄像头检测到的人脸列表
-        val cameraNames: List<String> = emptyList(), // 摄像头识别到的人名列表
-        val cameraImageWidth: Int = 0, // 分析帧宽度（用于坐标映射）
-        val cameraImageHeight: Int = 0, // 分析帧高度（用于坐标映射）
-        val cameraThreshold: Float = 0.45f, // 摄像头识别阈值
-        val cameraDetectionThreshold: Float = 0.5f, // 摄像头检测阈值
         val imageDownsample: Boolean = true, // 标记是否对大图片进行降采样处理以节省内存
         val videoUri: Uri? = null, // 用户选择的视频文件URI地址
         val videoInfo: VideoProcessor.VideoInfo? = null, // 视频文件的元信息（宽高、时长等）
@@ -74,7 +67,7 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
     ) // 结束UiState数据类的属性定义
 
     enum class Screen { // 定义页面枚举类，列出应用中所有可导航的页面
-        Main, Camera, Video, Templates, History, Settings, About // 主页、相机页、视频页、模板页、历史页、设置页、关于页
+        Main, Video, Templates, History, Settings, About // 主页、视频页、模板页、历史页、设置页、关于页
     } // 结束Screen枚举类
 
     data class TemplateItem( // 定义模板条目数据类，用于在UI中展示单个模板信息
@@ -213,55 +206,6 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
     fun setImageDownsample(enabled: Boolean) { // 设置图片降采样开关函数
         _uiState.update { it.copy(imageDownsample = enabled) } // 更新图片降采样开关的状态
     } // 结束setImageDownsample函数
-
-    fun setCameraEnabled(enabled: Boolean) { // 设置相机启用状态函数
-        _uiState.update { it.copy(isCameraEnabled = enabled) } // 更新相机启用状态
-    } // 结束setCameraEnabled函数
-
-    fun updateCameraThreshold(value: Float) {
-        _uiState.update { it.copy(cameraThreshold = value) }
-    }
-
-    fun updateCameraDetectionThreshold(value: Float) {
-        _uiState.update { it.copy(cameraDetectionThreshold = value) }
-    }
-
-    fun clearCameraResults() {
-        _uiState.update { it.copy(cameraDetections = emptyList(), cameraNames = emptyList()) }
-    }
-
-    suspend fun analyzeCameraFrame(bitmap: Bitmap) {
-        val recognizer = faceRecognizer ?: return
-        val currentState = _uiState.value
-        if (!currentState.isModelLoaded) return
-
-        try {
-            val detections = recognizer.detectFaces(bitmap, currentState.cameraDetectionThreshold)
-            if (detections.isEmpty()) {
-                _uiState.update { it.copy(
-                    cameraDetections = emptyList(),
-                    cameraNames = emptyList(),
-                    cameraImageWidth = bitmap.width,
-                    cameraImageHeight = bitmap.height
-                ) }
-                return
-            }
-
-            val results = recognizer.recognizeFacesParallel(
-                bitmap, detections, templates, currentState.cameraThreshold
-            )
-            val names = results.map { it.name }
-
-            _uiState.update { it.copy(
-                cameraDetections = detections,
-                cameraNames = names,
-                cameraImageWidth = bitmap.width,
-                cameraImageHeight = bitmap.height
-            ) }
-        } catch (e: Exception) {
-            Log.e(TAG, "摄像头帧分析失败: ${e.message}", e)
-        }
-    }
 
     // --- 图片操作 --- // 分隔注释，标记下方为图片操作相关函数
 
