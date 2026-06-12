@@ -188,6 +188,11 @@ fun MainScreen( // 定义主屏幕函数，是应用的顶层UI入口
                         modifier = Modifier.padding(paddingValues) // 应用Scaffold提供的内边距
                     ) // VideoScreen调用结束
                 } // 视频识别分支结束
+                FaceRecognitionViewModel.Screen.About -> { // 当前屏幕为关于时
+                    AboutScreen( // 渲染关于屏幕
+                        modifier = Modifier.padding(paddingValues) // 应用Scaffold提供的内边距
+                    ) // AboutScreen调用结束
+                } // 关于分支结束
             } // when条件分支结束
         } // Scaffold内容区域结束
     } // ModalNavigationDrawer内容区域结束
@@ -209,7 +214,8 @@ fun DrawerContent( // 定义侧边抽屉内容函数
         FaceRecognitionViewModel.Screen.Video to ("视频识别" to Icons.Default.Videocam), // 视频识别屏幕项，显示摄像机图标
         FaceRecognitionViewModel.Screen.Templates to ("模板管理" to Icons.Default.Folder), // 模板管理屏幕项，显示文件夹图标
         FaceRecognitionViewModel.Screen.History to ("识别历史" to Icons.Default.History), // 识别历史屏幕项，显示历史图标
-        FaceRecognitionViewModel.Screen.Settings to ("设置" to Icons.Default.Settings) // 设置屏幕项，显示设置图标
+        FaceRecognitionViewModel.Screen.Settings to ("设置" to Icons.Default.Settings), // 设置屏幕项，显示设置图标
+        FaceRecognitionViewModel.Screen.About to ("关于" to Icons.Default.Info) // 关于屏幕项，显示信息图标
     ) // 屏幕列表定义结束
 
     Column( // 创建垂直布局容器，用于排列抽屉内的所有内容
@@ -382,14 +388,14 @@ fun MainContent( // 定义主页内容函数
             ) // ThresholdSlider调用结束
         } // 阈值滑块项结束
 
-        // 检测阈值滑块
-        item {
-            ThresholdSlider(
-                threshold = uiState.detectionThreshold,
-                onThresholdChange = { viewModel.updateDetectionThreshold(it) },
-                label = "检测阈值"
-            )
-        }
+        // 检测阈值滑块 // 注释标记：以下是检测阈值滑块区域
+        item { // 列表项：检测阈值滑块
+            ThresholdSlider( // 渲染检测阈值调节滑块
+                threshold = uiState.detectionThreshold, // 传入当前检测阈值
+                onThresholdChange = { viewModel.updateDetectionThreshold(it) }, // 传入检测阈值变更回调
+                label = "检测阈值" // 设置滑块标签为"检测阈值"
+            ) // ThresholdSlider调用结束
+        } // 检测阈值滑块项结束
 
         // 日志卡片 // 注释标记：以下是日志卡片区域
         item { // 列表项：日志卡片

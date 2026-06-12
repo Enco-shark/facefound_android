@@ -19,6 +19,7 @@
 - **主题切换** - 深色/浅色主题
 - **现代化 UI** - Jetpack Compose + Material 3
 - **离线运行** - 所有推理在设备端完成，无需网络
+- **关于页面** - 应用信息、开发人员、核心依赖致谢、许可证、项目链接
 
 ---
 
@@ -164,7 +165,8 @@ android_project/
 │       │   │   ├── screens/
 │       │   │   │   ├── MainScreen.kt       #   Compose 主界面
 │       │   │   │   ├── CameraScreen.kt     #   实时摄像头识别界面
-│       │   │   │   └── VideoScreen.kt      #   视频识别界面
+│       │   │   │   ├── VideoScreen.kt      #   视频识别界面
+│       │   │   │   └── AboutScreen.kt      #   关于屏幕
 │       │   │   ├── theme/
 │       │   │   │   ├── Color.kt            #   颜色定义
 │       │   │   │   ├── Theme.kt            #   主题配置
@@ -196,6 +198,7 @@ android_project/
 | NpzParser.kt | NPZ/ZIP 解析、NPY header 解析、Unicode 名字解析、嵌入归一化 |
 | TemplateRepository.kt | 模板二进制序列化、原子写入、索引管理 |
 | MainScreen.kt | Compose UI 布局、导航抽屉、设置页面 |
+| AboutScreen.kt | 关于页面，包含应用信息、开发人员、依赖致谢、许可证 |
 
 ---
 

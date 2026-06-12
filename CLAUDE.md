@@ -43,6 +43,7 @@ Single-module Android app using Kotlin + Jetpack Compose + Material 3.
 - `util/TemplateRepository.kt` — Template binary serialization, atomic write, index management
 - `ui/screens/MainScreen.kt` — Main Compose UI with navigation drawer and settings
 - `ui/screens/VideoScreen.kt` — Video recognition UI
+- `ui/screens/AboutScreen.kt` — About page: app info, developers, dependencies, license, links
 
 ### Data Flow
 

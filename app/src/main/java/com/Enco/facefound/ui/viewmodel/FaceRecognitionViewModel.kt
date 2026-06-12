@@ -74,7 +74,7 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
     ) // 结束UiState数据类的属性定义
 
     enum class Screen { // 定义页面枚举类，列出应用中所有可导航的页面
-        Main, Camera, Video, Templates, History, Settings // 主页、相机页、视频页、模板页、历史页、设置页
+        Main, Camera, Video, Templates, History, Settings, About // 主页、相机页、视频页、模板页、历史页、设置页、关于页
     } // 结束Screen枚举类
 
     data class TemplateItem( // 定义模板条目数据类，用于在UI中展示单个模板信息
