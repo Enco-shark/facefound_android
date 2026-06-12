@@ -6,7 +6,6 @@
 
 ## 功能特性
 
-- **实时摄像头识别** - CameraX 实时预览，逐帧检测+识别，实时显示人脸框和姓名标注
 - **人脸检测** - SCRFD (det_10g) 多尺度锚点检测，输出边界框 + 5 点关键点
 - **人脸对齐** - 5 点最小二乘相似变换，对齐到 ArcFace 标准 112x112 模板
 - **人脸识别** - ArcFace (w600k_r50) 提取 512 维嵌入向量，余弦相似度匹配
@@ -43,7 +42,6 @@
 | 库 | 版本 | 用途 |
 |----|------|------|
 | ONNX Runtime | 1.17.0 | 模型推理引擎（核心） |
-| CameraX | 1.3.1 | 实时摄像头预览与帧分析 |
 | Jetpack Compose | BOM 2024.02.00 | UI 框架 |
 | Material 3 | (BOM 管理) | 设计系统 |
 | Navigation Compose | 2.7.7 | 页面导航 |
@@ -164,7 +162,6 @@ android_project/
 │       │   ├── ui/
 │       │   │   ├── screens/
 │       │   │   │   ├── MainScreen.kt       #   Compose 主界面
-│       │   │   │   ├── CameraScreen.kt     #   实时摄像头识别界面
 │       │   │   │   ├── VideoScreen.kt      #   视频识别界面
 │       │   │   │   └── AboutScreen.kt      #   关于屏幕
 │       │   │   ├── theme/
@@ -193,8 +190,7 @@ android_project/
 |------|------|
 | OnnxFaceRecognition.kt | ONNX 模型加载、人脸检测、对齐、特征提取、识别匹配、并行处理 |
 | VideoProcessor.kt | 视频帧提取、批量人脸识别、结果绘制、H.264 编码输出 |
-| FaceRecognitionViewModel.kt | UI 状态管理、识别/视频/摄像头流程编排、模板管理 |
-| CameraScreen.kt | CameraX 实时预览、逐帧分析、人脸叠加层绘制 |
+| FaceRecognitionViewModel.kt | UI 状态管理、识别/视频流程编排、模板管理 |
 | NpzParser.kt | NPZ/ZIP 解析、NPY header 解析、Unicode 名字解析、嵌入归一化 |
 | TemplateRepository.kt | 模板二进制序列化、原子写入、索引管理 |
 | MainScreen.kt | Compose UI 布局、导航抽屉、设置页面 |
@@ -207,7 +203,7 @@ android_project/
 ### 整体流程
 
 ```
-输入图片/视频帧/摄像头帧
+输入图片/视频帧
    |
    v
 +-------------------------+
@@ -247,12 +243,6 @@ android_project/
 - 多张人脸使用 async 并行处理
 - 对齐(CPU)完全并行，ONNX推理受Semaphore保护
 - 默认并发上限: 2 (可通过maxConcurrency调整)
-
-实时摄像头: CameraX Pipeline
-- CameraX PreviewView 显示摄像头画面
-- ImageAnalysis 逐帧分析 (STRATEGY_KEEP_ONLY_LATEST)
-- AtomicBoolean 节流，避免帧积压
-- Canvas 叠加层实时绘制边界框和姓名
 ```
 
 ### 人脸检测 (SCRFD)
@@ -340,13 +330,6 @@ templates.npz (ZIP)
 4. 调节阈值 -> 拖动滑块调节检测阈值和识别阈值
 5. 开始识别 -> 点击按钮，查看结果
 
-### 实时摄像头识别流程
-
-1. 侧滑菜单 -> 进入"实时识别"页面
-2. 授予权限 -> 首次使用需授予摄像头权限
-3. 对准人脸 -> 将摄像头对准人脸，自动检测+识别
-4. 查看结果 -> 实时显示人脸框、姓名和置信度
-
 ### 视频识别流程
 
 1. 侧滑菜单 -> 进入"视频识别"页面
@@ -416,13 +399,6 @@ np.savez("templates.npz", names=names, embeddings=embeddings)
 2. 检查可用内存（模型加载需要 ~300MB）
 3. 查看 logcat 日志定位异常
 
-### 摄像头无法使用
-
-1. 确认已授予摄像头权限（设置 → 应用 → FaceFound → 权限）
-2. 确认设备有摄像头硬件
-3. 如摄像头被其他应用占用，关闭后重试
-4. 查看 logcat 中 `CameraScreen` 标签的日志
-
 ---
 
 ## 性能参考
@@ -441,12 +417,6 @@ np.savez("templates.npz", names=names, embeddings=embeddings)
 - 对齐阶段完全并行（纯 CPU，无并发限制）
 - ONNX 推理通过 Semaphore(2) 限制并发，平衡速度与内存
 - 模板匹配（余弦相似度）为纯 CPU 计算，完全并行
-
-### 实时摄像头识别
-
-- 分析帧率: ~5fps（受 ONNX 推理耗时影响）
-- 显示帧率: 30fps（CameraX 预览独立于分析）
-- 坐标映射: 分析分辨率(640x480) → 显示分辨率，自动缩放
 
 ---
 

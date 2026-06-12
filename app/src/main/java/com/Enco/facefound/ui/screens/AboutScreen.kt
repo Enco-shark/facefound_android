@@ -312,18 +312,6 @@ private fun CoreDependenciesCard() { // 定义核心依赖卡片函数
             ) // HorizontalDivider结束
 
             DependencyItem( // 渲染依赖项
-                name = "CameraX", // 依赖名称
-                version = "1.3.1", // 版本号
-                description = "Android Jetpack 相机库，简化相机应用开发", // 描述
-                license = "Apache License 2.0" // 许可证类型
-            ) // 依赖项调用结束
-
-            HorizontalDivider( // 显示水平分割线
-                modifier = Modifier.padding(vertical = 8.dp), // 上下各留8dp间距
-                color = MaterialTheme.colorScheme.outlineVariant // 设置分割线颜色
-            ) // HorizontalDivider结束
-
-            DependencyItem( // 渲染依赖项
                 name = "Kotlin Coroutines", // 依赖名称
                 version = "1.7.3", // 版本号
                 description = "Kotlin 协程库，支持异步编程", // 描述
@@ -584,7 +572,6 @@ private fun LicenseCard() { // 定义许可证卡片函数
                             appendLine("- ONNX Runtime: MIT License") // ONNX Runtime 许可证
                             appendLine("- InsightFace: MIT License") // InsightFace 许可证
                             appendLine("- Jetpack Compose: Apache License 2.0") // Jetpack Compose 许可证
-                            appendLine("- CameraX: Apache License 2.0") // CameraX 许可证
                             appendLine("- Kotlin Coroutines: Apache License 2.0") // Kotlin Coroutines 许可证
                         }, // buildString结束
                         style = MaterialTheme.typography.bodySmall, // 使用小正文排版样式

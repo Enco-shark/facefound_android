@@ -40,7 +40,6 @@ Single `:app` module. Source root: `app/src/main/java/com/Enco/facefound/`
 | `video/VideoProcessor.kt` | Batch video frame processing, H.264 output encoding |
 | `ui/viewmodel/FaceRecognitionViewModel.kt` | State management, orchestrates all flows |
 | `ui/screens/MainScreen.kt` | Main Compose UI, navigation drawer, settings |
-| `ui/screens/CameraScreen.kt` | CameraX real-time recognition |
 | `ui/screens/VideoScreen.kt` | Video recognition UI |
 | `ui/screens/AboutScreen.kt` | About page: app info, developers, dependencies, license, links |
 | `util/NpzParser.kt` | NPZ/ZIP template import, NPY parsing, UTF-32LE name decoding |

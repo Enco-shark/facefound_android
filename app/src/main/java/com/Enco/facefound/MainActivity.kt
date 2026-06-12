@@ -44,7 +44,7 @@ class MainActivity : ComponentActivity() { // 主Activity，继承ComponentActiv
 
         viewModel = ViewModelProvider(this)[FaceRecognitionViewModel::class.java] // 通过ViewModelProvider获取或创建ViewModel
 
-        requestStoragePermission() // 请求存储和相机权限
+        requestStoragePermission() // 请求存储权限
 
         setContent { // 设置Compose UI内容
             val uiState by viewModel.uiState.collectAsState() // 收集ViewModel的UI状态Flow
@@ -66,20 +66,19 @@ class MainActivity : ComponentActivity() { // 主Activity，继承ComponentActiv
         }
     }
 
-    private fun requestStoragePermission() { // 请求存储和相机权限
+    private fun requestStoragePermission() { // 请求存储权限
         val storagePermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // Android 13+
             Manifest.permission.READ_MEDIA_IMAGES // 使用新的媒体图片权限
         } else { // Android 12及以下
             Manifest.permission.READ_EXTERNAL_STORAGE // 使用传统外部存储权限
         }
 
-        if (ContextCompat.checkSelfPermission(this, storagePermission) == PackageManager.PERMISSION_GRANTED && // 存储权限已授予
-            ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) { // 相机权限已授予
+        if (ContextCompat.checkSelfPermission(this, storagePermission) == PackageManager.PERMISSION_GRANTED) { // 存储权限已授予
             // 权限已授予，直接初始化
-            initializeViewModelIfNeeded() // 两个权限都有，直接初始化
+            initializeViewModelIfNeeded() // 权限已授予，直接初始化
         } else { // 需要请求权限
             // 请求权限
-            permissionLauncher.launch(arrayOf(storagePermission, Manifest.permission.CAMERA)) // 启动权限请求对话框
+            permissionLauncher.launch(arrayOf(storagePermission)) // 启动权限请求对话框
         }
     }
 

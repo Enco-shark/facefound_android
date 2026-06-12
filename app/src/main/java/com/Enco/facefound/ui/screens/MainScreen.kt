@@ -821,16 +821,6 @@ fun SettingsScreen( // 定义设置屏幕函数
                 } // Row内容结束
             } // 识别设置组结束
         } // 识别设置项结束
-
-        item { // 列表项：关于设置组
-            SettingGroup(title = "关于") { // 渲染"关于"设置组
-                Text( // 显示应用版本信息
-                    "FaceFound v${BuildConfig.VERSION_NAME}", // 使用字符串模板拼接应用名称和版本号
-                    style = MaterialTheme.typography.bodyMedium, // 使用中正文排版样式
-                    modifier = Modifier.padding(vertical = 12.dp) // 上下各添加12dp内边距
-                ) // 版本信息Text结束
-            } // 关于设置组结束
-        } // 关于设置项结束
     } // LazyColumn内容区域结束
 } // SettingsScreen函数结束
 
