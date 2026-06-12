@@ -148,6 +148,7 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
     fun initialize() { // 初始化函数，负责加载ONNX模型和已有模板
         if (faceRecognizer?.isLoaded == true) return // 如果人脸识别器已加载，直接返回避免重复初始化
         loadSettings() // 从SharedPreferences加载上次保存的用户设置
+        loadHistory() // 从SharedPreferences加载上次保存的识别历史记录
         val context = getApplication<Application>() // 获取应用上下文，用于模型文件的读取
         viewModelScope.launch { // 在ViewModel作用域内启动协程，生命周期与ViewModel绑定
             _uiState.update { it.copy(statusMessage = "正在加载模型...") } // 更新状态消息为"正在加载模型..."
@@ -226,6 +227,52 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
             .apply() // 异步写入磁盘，不阻塞主线程
     } // 结束saveSettings函数
 
+    private fun loadHistory() { // 从SharedPreferences加载识别历史记录，恢复到UI状态中
+        val jsonStr = prefs.getString(KEY_HISTORY, null) // 读取历史记录的JSON字符串，不存在则返回null
+        if (jsonStr.isNullOrEmpty()) return // 如果没有保存的历史记录，直接返回
+        try { // 尝试解析JSON
+            val jsonArray = JSONArray(jsonStr) // 将JSON字符串解析为JSONArray
+            val historyList = mutableListOf<RecognitionHistoryItem>() // 创建可变历史记录列表
+            for (i in 0 until jsonArray.length()) { // 遍历JSON数组中的每个元素
+                val obj = jsonArray.getJSONObject(i) // 获取第i个JSON对象
+                val namesArray = obj.getJSONArray("names") // 获取人名JSON数组
+                val names = mutableListOf<String>() // 创建可变人名列表
+                for (j in 0 until namesArray.length()) { // 遍历人名数组
+                    names.add(namesArray.getString(j)) // 将人名添加到列表中
+                } // 结束人名遍历
+                historyList.add( // 添加一条历史记录
+                    RecognitionHistoryItem( // 创建历史记录条目
+                        id = obj.getLong("id"), // 读取唯一标识符
+                        timestamp = Date(obj.getLong("timestamp")), // 读取时间戳并转为Date对象
+                        recognizedNames = names, // 设置人名列表
+                        processingTimeMs = obj.getLong("processingTimeMs") // 读取处理耗时
+                    ) // 结束RecognitionHistoryItem创建
+                ) // 结束add
+            } // 结束遍历
+            _uiState.update { it.copy(recognitionHistory = historyList) } // 将加载的历史记录更新到UI状态
+        } catch (e: Exception) { // 捕获JSON解析异常
+            Log.e(TAG, "加载历史记录失败: ${e.message}") // 记录错误日志
+        } // 结束异常捕获
+    } // 结束loadHistory函数
+
+    private fun saveHistory() { // 将当前识别历史记录保存到SharedPreferences，实现持久化存储
+        try { // 尝试序列化历史记录
+            val historyList = _uiState.value.recognitionHistory // 获取当前历史记录列表
+            val jsonArray = JSONArray() // 创建JSON数组用于存储序列化后的历史记录
+            for (item in historyList) { // 遍历每条历史记录
+                val obj = JSONObject() // 创建JSON对象存储单条记录
+                obj.put("id", item.id) // 保存唯一标识符
+                obj.put("timestamp", item.timestamp.time) // 将Date转为时间戳保存
+                obj.put("names", JSONArray(item.recognizedNames)) // 将人名列表转为JSON数组保存
+                obj.put("processingTimeMs", item.processingTimeMs) // 保存处理耗时
+                jsonArray.put(obj) // 将JSON对象添加到JSON数组中
+            } // 结束遍历
+            prefs.edit().putString(KEY_HISTORY, jsonArray.toString()).apply() // 将JSON数组序列化为字符串并保存
+        } catch (e: Exception) { // 捕获序列化异常
+            Log.e(TAG, "保存历史记录失败: ${e.message}") // 记录错误日志
+        } // 结束异常捕获
+    } // 结束saveHistory函数
+
     // --- 屏幕导航 --- // 分隔注释，标记下方为页面导航相关函数
 
     fun navigateTo(screen: Screen) { // 页面导航函数，切换当前显示的页面
@@ -270,6 +317,87 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
         oldBitmap?.recycle() // 回收旧的结果位图，释放内存
         addLog("📷 加载图片: ${uri.lastPathSegment}") // 记录加载图片的日志，显示文件名
     } // 结束setInputImage函数
+
+    fun startBatchRecognition(uris: List<Uri>) { // 批量识别函数，处理多张图片
+        val recognizer = faceRecognizer ?: return // 获取人脸识别器实例，为空则直接返回
+        val currentState = _uiState.value // 获取当前UI状态快照
+        if (!currentState.isModelLoaded) return // 如果模型未加载，直接返回
+        if (uris.isEmpty()) return // 如果图片列表为空，直接返回
+
+        val appContext = getApplication<Application>() // 获取应用上下文
+        viewModelScope.launch { // 在ViewModel作用域内启动协程
+            _uiState.update { it.copy(isProcessing = true, statusMessage = "批量识别中... 0/${uris.size}") } // 更新状态为处理中
+            addLog("📷 开始批量识别: ${uris.size} 张图片") // 记录批量识别开始的日志
+
+            val allHistoryItems = mutableListOf<RecognitionHistoryItem>() // 创建批量识别的历史记录列表
+            var processedCount = 0 // 已处理图片计数
+            var successCount = 0 // 成功识别的图片计数
+
+            for (uri in uris) { // 遍历每张图片
+                try { // 尝试处理当前图片
+                    val sourceBitmap = withContext(Dispatchers.IO) { // 在IO线程中加载图片
+                        loadBitmapFromUri(appContext, uri) // 从URI加载位图
+                    } // 结束IO线程
+                    if (sourceBitmap == null) { // 如果图片加载失败
+                        addLog("⚠️ 跳过: ${uri.lastPathSegment} (加载失败)") // 记录跳过日志
+                        processedCount++ // 递增已处理计数
+                        continue // 跳过当前图片，继续下一张
+                    } // 结束加载失败检查
+
+                    val maxDimension = 2048 // 定义图片最大尺寸限制
+                    val workingBitmap = if (sourceBitmap.width > maxDimension || sourceBitmap.height > maxDimension) { // 如果图片超过最大尺寸
+                        val scale = maxDimension.toFloat() / maxOf(sourceBitmap.width, sourceBitmap.height) // 计算缩放比例
+                        val newWidth = (sourceBitmap.width * scale).toInt() // 计算缩放后宽度
+                        val newHeight = (sourceBitmap.height * scale).toInt() // 计算缩放后高度
+                        val scaled = Bitmap.createScaledBitmap(sourceBitmap, newWidth, newHeight, true) // 创建缩放后的位图
+                        sourceBitmap.recycle() // 回收原始位图
+                        scaled // 使用缩放后的位图
+                    } else { // 如果图片尺寸在限制范围内
+                        sourceBitmap // 直接使用原图
+                    } // 结束图片尺寸处理
+
+                    val detections = recognizer.detectFaces(workingBitmap, currentState.detectionThreshold) // 执行人脸检测
+                    val names = if (detections.isNotEmpty()) { // 如果检测到人脸
+                        val results = recognizer.recognizeFacesParallel(workingBitmap, detections, templates, currentState.threshold) // 执行人脸识别
+                        results.map { it.name } // 提取识别结果中的人名列表
+                    } else { // 如果未检测到人脸
+                        emptyList() // 返回空人名列表
+                    } // 结束人脸检测与识别
+
+                    workingBitmap.recycle() // 释放工作位图内存
+
+                    val historyItem = RecognitionHistoryItem( // 创建当前图片的历史记录条目
+                        timestamp = Date(), // 记录当前时间
+                        recognizedNames = names, // 记录识别到的人名列表
+                        processingTimeMs = 0 // 批量模式不单独记录耗时
+                    ) // 结束RecognitionHistoryItem创建
+                    allHistoryItems.add(historyItem) // 将当前图片的历史记录添加到列表中
+
+                    processedCount++ // 递增已处理计数
+                    if (names.isNotEmpty()) successCount++ // 如果识别到人脸，递增成功计数
+                    _uiState.update { it.copy(statusMessage = "批量识别中... $processedCount/${uris.size}") } // 更新处理进度
+                    addLog("✅ ${uri.lastPathSegment}: ${names.joinToString(", ").ifEmpty { "未检测到人脸" }}") // 记录当前图片的识别结果
+                } catch (e: OutOfMemoryError) { // 捕获内存不足异常
+                    addLog("❌ ${uri.lastPathSegment}: 内存不足，跳过") // 记录内存不足日志
+                    processedCount++ // 递增已处理计数
+                    System.gc() // 建议垃圾回收器回收内存
+                } catch (e: Exception) { // 捕获其他异常
+                    addLog("❌ ${uri.lastPathSegment}: ${e.message}") // 记录错误日志
+                    processedCount++ // 递增已处理计数
+                } // 结束异常捕获
+            } // 结束图片遍历
+
+            _uiState.update { state -> // 更新UI状态，将批量识别的历史记录合并到现有历史中
+                state.copy( // 复制当前状态
+                    isProcessing = false, // 标记处理结束
+                    statusMessage = "批量识别完成: $successCount/${uris.size} 张识别到人脸", // 更新状态消息显示批量识别结果
+                    recognitionHistory = allHistoryItems + state.recognitionHistory.take(50 - allHistoryItems.size) // 将批量历史记录添加到历史头部，总条数限制50条
+                ) // 结束copy
+            } // 结束_uiState.update
+            saveHistory() // 将更新后的历史记录保存到SharedPreferences
+            addLog("✅ 批量识别完成: 共${uris.size}张，$successCount张识别到人脸") // 记录批量识别完成的日志
+        } // 结束viewModelScope.launch协程
+    } // 结束startBatchRecognition函数
 
     // --- 模板管理 --- // 分隔注释，标记下方为模板管理相关函数
 
@@ -462,6 +590,7 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
                         recognitionHistory = listOf(historyItem) + state.recognitionHistory.take(49) // 将新记录添加到历史记录头部，最多保留50条
                     ) // 结束copy
                 } // 结束_uiState.update
+                saveHistory() // 将更新后的历史记录保存到SharedPreferences
 
                 addLog("✅ 识别完成，总耗时 ${totalTime}ms") // 记录识别完成的日志
 
@@ -546,6 +675,7 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
         _uiState.update { // 更新UI状态
             it.copy(recognitionHistory = emptyList()) // 将识别历史记录列表设为空列表
         } // 结束_uiState.update
+        saveHistory() // 将清空后的历史记录保存到SharedPreferences
         addLog("🗑️ 识别历史已清空") // 记录历史记录已清空的日志
     } // 结束clearHistory函数
 

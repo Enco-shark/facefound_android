@@ -110,6 +110,15 @@ fun MainScreen( // 定义主屏幕函数，是应用的顶层UI入口
         uri?.let { viewModel.setInputImage(it) } // 如果Uri不为空，则调用ViewModel设置输入图片
     } // 图片选择器回调结束
 
+    // 批量图片选择器 // 注释标记：以下是批量图片选择器的配置
+    val batchImagePicker = rememberLauncherForActivityResult( // 创建并记忆批量图片选择器的ActivityResult启动器
+        ActivityResultContracts.GetMultipleContents() // 使用GetMultipleContents合约，允许用户选择多个文件
+    ) { uris -> // 选择完成后的回调，接收选择结果的Uri列表
+        if (uris.isNotEmpty()) { // 如果选择了至少一张图片
+            viewModel.startBatchRecognition(uris) // 调用ViewModel开始批量识别
+        } // 结束非空检查
+    } // 批量图片选择器回调结束
+
     // 模板选择器 // 注释标记：以下是模板选择器的配置
     val templatePicker = rememberLauncherForActivityResult( // 创建并记忆模板文件选择器的ActivityResult启动器
         ActivityResultContracts.GetContent() // 使用GetContent合约，允许用户选择任意类型文件
@@ -153,6 +162,7 @@ fun MainScreen( // 定义主屏幕函数，是应用的顶层UI入口
                     MainContent( // 渲染主内容组件
                         viewModel = viewModel, // 传入ViewModel
                         imagePicker = { imagePicker.launch("image/*") }, // 传入图片选择器回调，启动图片MIME类型选择
+                        batchImagePicker = { batchImagePicker.launch("image/*") }, // 传入批量图片选择器回调，启动多选图片MIME类型选择
                         templatePicker = { templatePicker.launch("*/*") }, // 传入模板选择器回调，启动任意文件类型选择
                         modifier = Modifier.padding(paddingValues) // 应用Scaffold提供的内边距
                     ) // MainContent调用结束
@@ -336,6 +346,7 @@ fun DrawerMenuItem( // 定义抽屉菜单项函数
 fun MainContent( // 定义主页内容函数
     viewModel: FaceRecognitionViewModel, // 接收ViewModel参数
     imagePicker: () -> Unit, // 接收图片选择器启动回调
+    batchImagePicker: () -> Unit, // 接收批量图片选择器启动回调
     templatePicker: () -> Unit, // 接收模板选择器启动回调
     modifier: Modifier = Modifier // 接收外部传入的修饰符，默认为空Modifier
 ) { // 函数体开始
@@ -366,6 +377,7 @@ fun MainContent( // 定义主页内容函数
                 templateName = uiState.templateName, // 传入当前模板名称
                 onLoadTemplate = { templatePicker() }, // 传入加载模板的回调
                 onRecognize = { viewModel.startRecognition() }, // 传入开始识别的回调
+                onBatchRecognize = { batchImagePicker() }, // 传入批量识别的回调
                 onSaveImage = { viewModel.saveResultImage() }, // 传入保存结果图片的回调
                 isProcessing = uiState.isProcessing, // 传入是否正在处理的状态
                 canSave = uiState.resultBitmap != null // 传入是否可以保存的判断（结果Bitmap不为空）
@@ -961,6 +973,7 @@ fun ControlPanel( // 定义控制面板函数
     templateName: String?, // 接收模板名称参数，可为null
     onLoadTemplate: () -> Unit, // 接收加载模板回调
     onRecognize: () -> Unit, // 接收开始识别回调
+    onBatchRecognize: () -> Unit, // 接收批量识别回调
     onSaveImage: () -> Unit, // 接收保存图片回调
     isProcessing: Boolean, // 接收是否正在处理的标志
     canSave: Boolean // 接收是否可以保存的标志
@@ -1023,6 +1036,19 @@ fun ControlPanel( // 定义控制面板函数
                     Text("保存") // 按钮文字"保存"
                 } // 保存按钮结束
             } // Row内容结束
+
+            Spacer(Modifier.height(8.dp)) // 创建8dp垂直间距
+
+            OutlinedButton( // 创建描边按钮用于批量识别
+                onClick = onBatchRecognize, // 点击时触发批量识别回调
+                enabled = !isProcessing, // 未在处理时才可点击
+                modifier = Modifier.fillMaxWidth(), // 填满宽度
+                shape = RoundedCornerShape(10.dp) // 设置10dp圆角
+            ) { // OutlinedButton内容开始
+                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp)) // 显示刷新图标，大小18dp
+                Spacer(Modifier.width(8.dp)) // 创建8dp水平间距
+                Text("批量识别") // 按钮文字"批量识别"
+            } // 批量识别按钮结束
         } // Column内容结束
     } // Card内容结束
 } // ControlPanel函数结束
