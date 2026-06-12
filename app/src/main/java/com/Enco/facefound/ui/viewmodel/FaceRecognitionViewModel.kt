@@ -395,7 +395,7 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
                 ) // 结束copy
             } // 结束_uiState.update
             saveHistory() // 将更新后的历史记录保存到SharedPreferences
-            addLog("✅ 批量识别完成: 共${uris.size}张，$successCount张识别到人脸") // 记录批量识别完成的日志
+            addLog("批量识别完成: 共" + uris.size + "张，" + successCount + "张识别到人脸") // 记录批量识别完成的日志
         } // 结束viewModelScope.launch协程
     } // 结束startBatchRecognition函数
 
