@@ -2,6 +2,7 @@ package com.Enco.facefound.ui.viewmodel // 声明当前文件所属的包路径�
 
 import android.app.Application // 导入Android应用类，用于获取应用级别的上下文
 import android.content.Context // 导入上下文类，用于访问系统服务和资源
+import android.content.SharedPreferences // 导入SharedPreferences类，用于持久化存储用户设置
 import android.graphics.Bitmap // 导入位图类，用于处理图片数据
 import android.graphics.BitmapFactory // 导入位图工厂类，用于从流中解码生成位图
 import android.net.Uri // 导入统一资源标识符类，用于标识图片或视频等资源的路径
@@ -125,12 +126,25 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
 
     companion object { // 伴生对象，存放类级别的静态成员
         private const val TAG = "FaceRecognitionVM" // 日志标签常量，用于Logcat中过滤本ViewModel的日志输出
+        private const val PREFS_NAME = "facefound_settings" // SharedPreferences文件名
+        private const val KEY_THRESHOLD = "threshold" // 识别阈值的存储键
+        private const val KEY_DETECTION_THRESHOLD = "detection_threshold" // 检测阈值的存储键
+        private const val KEY_DARK_THEME = "dark_theme" // 深色主题的存储键
+        private const val KEY_IMAGE_DOWNSAMPLE = "image_downsample" // 图片降采样的存储键
+        private const val KEY_VIDEO_THRESHOLD = "video_threshold" // 视频识别阈值的存储键
+        private const val KEY_VIDEO_DETECTION_THRESHOLD = "video_detection_threshold" // 视频检测阈值的存储键
+        private const val KEY_VIDEO_SAMPLE_RATE = "video_sample_rate" // 视频抽帧频率的存储键
     } // 结束companion object
+
+    private val prefs: SharedPreferences by lazy { // 懒加载SharedPreferences实例，用于持久化存储用户设置
+        getApplication<Application>().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) // 获取或创建名为facefound_settings的SharedPreferences文件
+    } // 结束prefs属性
 
     // --- 初始化 --- // 分隔注释，标记下方为初始化相关的函数
 
     fun initialize() { // 初始化函数，负责加载ONNX模型和已有模板
         if (faceRecognizer?.isLoaded == true) return // 如果人脸识别器已加载，直接返回避免重复初始化
+        loadSettings() // 从SharedPreferences加载上次保存的用户设置
         val context = getApplication<Application>() // 获取应用上下文，用于模型文件的读取
         viewModelScope.launch { // 在ViewModel作用域内启动协程，生命周期与ViewModel绑定
             _uiState.update { it.copy(statusMessage = "正在加载模型...") } // 更新状态消息为"正在加载模型..."
@@ -181,6 +195,34 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
         } // 结束viewModelScope.launch协程
     } // 结束initialize函数
 
+    // --- 设置持久化 --- // 分隔注释，标记下方为设置持久化相关的函数
+
+    private fun loadSettings() { // 从SharedPreferences加载上次保存的用户设置，恢复到UI状态中
+        _uiState.update { // 更新UI状态，将SharedPreferences中读取的值覆盖默认值
+            it.copy( // 复制当前状态并修改以下设置字段
+                threshold = prefs.getFloat(KEY_THRESHOLD, 0.3f), // 读取识别阈值，默认0.3
+                detectionThreshold = prefs.getFloat(KEY_DETECTION_THRESHOLD, 0.5f), // 读取检测阈值，默认0.5
+                isDarkTheme = prefs.getBoolean(KEY_DARK_THEME, false), // 读取深色主题设置，默认关闭
+                imageDownsample = prefs.getBoolean(KEY_IMAGE_DOWNSAMPLE, true), // 读取图片降采样设置，默认开启
+                videoThreshold = prefs.getFloat(KEY_VIDEO_THRESHOLD, 0.35f), // 读取视频识别阈值，默认0.35
+                videoDetectionThreshold = prefs.getFloat(KEY_VIDEO_DETECTION_THRESHOLD, 0.5f), // 读取视频检测阈值，默认0.5
+                videoSampleRate = prefs.getInt(KEY_VIDEO_SAMPLE_RATE, 1) // 读取视频抽帧频率，默认1
+            ) // 结束copy
+        } // 结束update
+    } // 结束loadSettings函数
+
+    private fun saveSettings() { // 将当前UI状态中的设置项保存到SharedPreferences，实现持久化存储
+        prefs.edit() // 获取SharedPreferences编辑器
+            .putFloat(KEY_THRESHOLD, _uiState.value.threshold) // 保存识别阈值
+            .putFloat(KEY_DETECTION_THRESHOLD, _uiState.value.detectionThreshold) // 保存检测阈值
+            .putBoolean(KEY_DARK_THEME, _uiState.value.isDarkTheme) // 保存深色主题设置
+            .putBoolean(KEY_IMAGE_DOWNSAMPLE, _uiState.value.imageDownsample) // 保存图片降采样设置
+            .putFloat(KEY_VIDEO_THRESHOLD, _uiState.value.videoThreshold) // 保存视频识别阈值
+            .putFloat(KEY_VIDEO_DETECTION_THRESHOLD, _uiState.value.videoDetectionThreshold) // 保存视频检测阈值
+            .putInt(KEY_VIDEO_SAMPLE_RATE, _uiState.value.videoSampleRate) // 保存视频抽帧频率
+            .apply() // 异步写入磁盘，不阻塞主线程
+    } // 结束saveSettings函数
+
     // --- 屏幕导航 --- // 分隔注释，标记下方为页面导航相关函数
 
     fun navigateTo(screen: Screen) { // 页面导航函数，切换当前显示的页面
@@ -191,20 +233,24 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
 
     fun toggleTheme() { // 主题切换函数，在深色和浅色主题之间切换
         _uiState.update { it.copy(isDarkTheme = !it.isDarkTheme) } // 将深色主题标志取反，实现切换
+        saveSettings() // 将主题设置保存到SharedPreferences
     } // 结束toggleTheme函数
 
     // --- 设置变更 --- // 分隔注释，标记下方为设置变更相关函数
 
     fun updateThreshold(value: Float) { // 更新识别阈值函数
         _uiState.update { it.copy(threshold = value) } // 将识别阈值更新为传入的新值
+        saveSettings() // 将识别阈值保存到SharedPreferences
     } // 结束updateThreshold函数
 
     fun updateDetectionThreshold(value: Float) { // 更新检测阈值函数
         _uiState.update { it.copy(detectionThreshold = value) } // 将检测阈值更新为传入的新值
+        saveSettings() // 将检测阈值保存到SharedPreferences
     } // 结束updateDetectionThreshold函数
 
     fun setImageDownsample(enabled: Boolean) { // 设置图片降采样开关函数
         _uiState.update { it.copy(imageDownsample = enabled) } // 更新图片降采样开关的状态
+        saveSettings() // 将图片降采样设置保存到SharedPreferences
     } // 结束setImageDownsample函数
 
     // --- 图片操作 --- // 分隔注释，标记下方为图片操作相关函数
@@ -528,14 +574,17 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
 
     fun updateVideoThreshold(value: Float) { // 更新视频识别阈值函数
         _uiState.update { it.copy(videoThreshold = value) } // 将视频识别阈值更新为传入的新值
+        saveSettings() // 将视频识别阈值保存到SharedPreferences
     } // 结束updateVideoThreshold函数
 
     fun updateVideoDetectionThreshold(value: Float) { // 更新视频检测阈值函数
         _uiState.update { it.copy(videoDetectionThreshold = value) } // 将视频检测阈值更新为传入的新值
+        saveSettings() // 将视频检测阈值保存到SharedPreferences
     } // 结束updateVideoDetectionThreshold函数
 
     fun updateVideoSampleRate(value: Int) { // 更新视频抽帧频率函数
         _uiState.update { it.copy(videoSampleRate = value.coerceIn(1, 5)) } // 将抽帧频率限制在1到5之间并更新
+        saveSettings() // 将视频抽帧频率保存到SharedPreferences
     } // 结束updateVideoSampleRate函数
 
     fun startVideoProcessing() { // 开始视频处理函数
