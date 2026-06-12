@@ -20,6 +20,5 @@
     <string name="logs">日志</string>
     
     <!-- 权限 -->
-    <string name="permission_camera">需要相机权限</string>
     <string name="permission_storage">需要存储权限</string>
 </resources>

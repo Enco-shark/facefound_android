@@ -32,7 +32,7 @@ Single-module Android app using Kotlin + Jetpack Compose + Material 3.
 1. **Detection** — SCRFD model (det_10g.onnx): 640x640 RGB input → bounding boxes + 5-point landmarks. Preprocessing: `(pixel - 127.5) / 128.0`, BGR order. Post-processing: confidence threshold → decode bbox/kps → NMS.
 2. **Alignment** — 5-point least-squares similarity transform to ArcFace 112x112 template coordinates.
 3. **Recognition** — ArcFace model (w600k_r50.onnx): 112x112 RGB input → 512-dim embedding, L2-normalized.
-4. **Matching** — Cosine similarity (dot product since vectors are L2-normed). Default threshold 0.45.
+4. **Matching** — Cosine similarity (dot product since vectors are L2-normed). Default threshold 0.30.
 
 ### Key Modules
 

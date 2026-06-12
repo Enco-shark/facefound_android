@@ -8,6 +8,8 @@ import android.graphics.BitmapFactory // 导入位图工厂类，用于从流中
 import android.net.Uri // 导入统一资源标识符类，用于标识图片或视频等资源的路径
 import android.os.Build // 导入构建信息类，用于获取Android系统版本号
 import android.util.Log // 导入日志工具类，用于输出调试和错误日志
+import org.json.JSONArray // 导入JSON数组类，用于序列化和反序列化历史记录列表
+import org.json.JSONObject // 导入JSON对象类，用于序列化和反序列化单条历史记录
 import androidx.lifecycle.AndroidViewModel // 导入AndroidViewModel基类，它持有Application引用，生命周期感知
 import androidx.lifecycle.viewModelScope // 导入ViewModel的作用域，用于管理协程的生命周期
 import kotlinx.coroutines.Dispatchers // 导入协程调度器，用于指定协程运行的线程（IO、Main等）
@@ -134,6 +136,7 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
         private const val KEY_VIDEO_THRESHOLD = "video_threshold" // 视频识别阈值的存储键
         private const val KEY_VIDEO_DETECTION_THRESHOLD = "video_detection_threshold" // 视频检测阈值的存储键
         private const val KEY_VIDEO_SAMPLE_RATE = "video_sample_rate" // 视频抽帧频率的存储键
+        private const val KEY_HISTORY = "recognition_history" // 识别历史记录的存储键
     } // 结束companion object
 
     private val prefs: SharedPreferences by lazy { // 懒加载SharedPreferences实例，用于持久化存储用户设置

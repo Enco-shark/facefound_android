@@ -73,8 +73,12 @@ fun AboutScreen( // 定义关于屏幕函数
         item { // 列表项：项目链接卡片
             ProjectLinksCard( // 渲染项目链接卡片
                 onLinkClick = { url -> // 定义链接点击回调
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)) // 创建打开链接的Intent
-                    context.startActivity(intent) // 启动Intent打开链接
+                    try { // 尝试打开链接，防止无浏览器时崩溃
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)) // 创建打开链接的Intent
+                        context.startActivity(intent) // 启动Intent打开链接
+                    } catch (e: Exception) { // 捕获无浏览器或ActivityNotFoundException等异常
+                        android.util.Log.e("AboutScreen", "无法打开链接: ${e.message}") // 记录错误日志
+                    } // 结束异常捕获
                 } // 链接点击回调结束
             ) // ProjectLinksCard调用结束
         } // 项目链接卡片项结束

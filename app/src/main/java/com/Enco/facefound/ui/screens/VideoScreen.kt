@@ -52,7 +52,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 // 导入视频文件图标
 import androidx.compose.material.icons.filled.VideoFile
-// 导入摄像头图标
+// 导入视频摄像机图标
 import androidx.compose.material.icons.filled.Videocam
 // 导入保存图标
 import androidx.compose.material.icons.filled.Save
@@ -327,9 +327,9 @@ fun VideoSourceCard(
                 ) {
                     // 垂直排列占位内容并水平居中
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        // 显示摄像头图标
+                        // 显示视频占位图标
                         Icon(
-                            // 使用默认的摄像头图标
+                            // 使用视频摄像机图标
                             Icons.Default.Videocam,
                             // 无障碍描述为空
                             contentDescription = null,
