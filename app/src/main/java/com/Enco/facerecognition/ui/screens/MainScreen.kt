@@ -3,9 +3,20 @@ package com.Enco.facerecognition.ui.screens // 声明当前文件所属的包路
 // 以下为导入语句，引入项目所需的各类依赖库
 
 import androidx.compose.animation.animateColorAsState // 导入颜色动画状态函数，用于实现颜色平滑过渡动画
+import androidx.compose.animation.core.EaseOutCubic // 导入缓动曲线，用于按钮动画
+import androidx.compose.animation.core.LinearEasing // 导入线性缓动，用于渐变背景
+import androidx.compose.animation.core.Spring // 导入弹簧动画规格，用于弹性效果
+import androidx.compose.animation.core.animateDpAsState // 导入Dp值动画状态，用于卡片阴影动画
+import androidx.compose.animation.core.animateFloatAsState // 导入浮点动画状态，用于按钮缩放
+import androidx.compose.animation.core.spring // 导入弹簧动画规格构建器
+import androidx.compose.animation.core.tween // 导入补间动画规格构建器
 import androidx.compose.foundation.Image // 导入基础Image组件，用于显示Bitmap图片
 import androidx.compose.foundation.background // 导入背景修饰符，用于为组件设置背景颜色
 import androidx.compose.foundation.clickable // 导入可点击修饰符，用于为组件添加点击交互
+import androidx.compose.foundation.combinedClickable // 导入组合点击修饰符，用于支持单击、长按、双击
+import androidx.compose.foundation.gestures.detectTapGestures // 导入点击手势检测，用于双击检测
+import androidx.compose.foundation.gestures.rememberTransformableState // 导入可变换状态记忆函数，用于捏合缩放
+import androidx.compose.foundation.gestures.transformable // 导入可变换修饰符，用于应用变换手势
 import androidx.compose.foundation.layout.Arrangement // 导入排列方式，用于控制子组件的间距和对齐
 import androidx.compose.foundation.layout.Box // 导入Box布局组件，用于层叠放置子组件
 import androidx.compose.foundation.layout.Column // 导入Column布局组件，用于垂直排列子组件
@@ -75,6 +86,7 @@ import androidx.compose.ui.draw.clip // 导入clip修饰符，用于裁剪组件
 import androidx.compose.ui.draw.shadow // 导入shadow修饰符，用于添加阴影效果
 import androidx.compose.ui.graphics.Color // 导入Color类，用于表示颜色值
 import androidx.compose.ui.graphics.asImageBitmap // 导入asImageBitmap扩展函数，用于将Android Bitmap转为Compose ImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer // 导入图形图层修饰符，用于应用缩放、旋转等变换
 import com.Enco.facerecognition.ui.theme.GradientEnd // 导入渐变终点颜色，用于按钮渐变效果
 import androidx.compose.ui.graphics.vector.ImageVector // 导入ImageVector类，用于表示矢量图标
 import androidx.compose.ui.text.font.FontWeight // 导入FontWeight类，用于设置字体粗细
@@ -144,7 +156,7 @@ fun MainScreen( // 定义主屏幕函数，是应用的顶层UI入口
         } // 抽屉内容定义结束
     ) { // ModalNavigationDrawer的内容区域开始
         Scaffold( // 创建脚手架，提供顶部栏和内容区域的基础布局结构
-            topBar = { // 定义顶部应用栏区域（现代简洁风：纯色，无渐变）
+            topBar = { // 定义顶部应用栏区域（优化B：渐变背景 + 滚动动态）
                 CenterAlignedTopAppBar(
                     title = {
                         Text(
@@ -172,10 +184,18 @@ fun MainScreen( // 定义主屏幕函数，是应用的顶层UI入口
                         }
                     },
                     colors = androidx.compose.material3.TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primary, // 纯色主色，无渐变
+                        containerColor = Color.Transparent, // 设置为透明，使用渐变背景
                         titleContentColor = MaterialTheme.colorScheme.onPrimary,
                         navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
                         actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    modifier = Modifier.background(
+                        brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary,
+                                GradientEnd
+                            )
+                        )
                     )
                 )
             } // 顶部栏定义结束
@@ -398,56 +418,102 @@ fun MainContent( // 定义主页内容函数
 ) { // 函数体开始
     val uiState by viewModel.uiState.collectAsState() // 收集ViewModel的UI状态
 
-    LazyColumn( // 创建可滚动的垂直懒加载列表（现代简洁风：加大留白）
+    LazyColumn( // 创建可滚动的垂直懒加载列表（参照视频识别界面风格）
         modifier = modifier.padding(horizontal = 20.dp, vertical = 16.dp), // 左右20dp留白，上下16dp
-        verticalArrangement = Arrangement.spacedBy(24.dp) // 子项之间设置24dp垂直间距，更透气
+        verticalArrangement = Arrangement.spacedBy(24.dp) // 子项之间设置24dp垂直间距
     ) { // LazyColumn内容区域开始
-        // 状态卡片 // 注释标记：以下是状态卡片区域
-        item { // 列表项：状态卡片
-            StatusCard(uiState.statusMessage, uiState.isReady) // 渲染状态卡片，传入状态消息和就绪状态
-        } // 状态卡片项结束
-
-        // 图片预览 // 注释标记：以下是图片预览区域
-        item { // 列表项：图片预览卡片
-            ImagePreviewCard( // 渲染图片预览卡片
-                imageUri = uiState.inputImageUri, // 传入输入图片的Uri
-                resultBitmap = uiState.resultBitmap, // 传入识别结果的Bitmap
-                onSelectImage = { imagePicker() }, // 传入选择图片的回调
-                onReselectImage = { imagePicker() } // 传入重新选择图片的回调
-            ) // ImagePreviewCard调用结束
-        } // 图片预览项结束
-
-        // 控制按钮 // 注释标记：以下是控制按钮区域
-        item { // 列表项：控制面板
-            ControlPanel( // 渲染控制面板
+        // 页面标题 // 参照VideoScreen风格
+        item { // 列表项：页面标题
+            Text( // 显示"图片识别"标题
+                "图片识别", // 标题文本
+                style = MaterialTheme.typography.headlineSmall, // 使用小标题排版样式
+                fontWeight = FontWeight.Bold // 设置粗体字重
+            ) // 标题Text结束
+        } // 标题项结束
+        
+        // 图片源卡片 // 参照VideoSourceCard风格
+        item { // 列表项：图片源卡片
+            ImageSourceCard( // 渲染图片源卡片
+                imageUri = uiState.inputImageUri, // 传入当前图片Uri
+                resultBitmap = uiState.resultBitmap, // 传入识别结果Bitmap
+                onSelectImage = { imagePicker() }, // 传入选择图片回调
+                onReselectImage = { imagePicker() } // 传入重新选择图片回调
+            ) // ImageSourceCard调用结束
+        } // 图片源项结束
+        
+        // 识别设置卡片 // 参照VideoSettingsCard风格，合并两个阈值设置
+        item { // 列表项：识别设置卡片
+            RecognitionSettingsCard( // 渲染识别设置卡片
+                threshold = uiState.threshold, // 传入当前相似度阈值
+                onThresholdChange = { viewModel.updateThreshold(it) }, // 传入阈值变更回调
+                detectionThreshold = uiState.detectionThreshold, // 传入当前检测阈值
+                onDetectionThresholdChange = { viewModel.updateDetectionThreshold(it) }, // 传入检测阈值变更回调
                 templateName = uiState.templateName, // 传入当前模板名称
-                onLoadTemplate = { templatePicker() }, // 传入加载模板的回调
-                onRecognize = { viewModel.startRecognition() }, // 传入开始识别的回调
-                onBatchRecognize = { batchImagePicker() }, // 传入批量识别的回调
-                onSaveImage = { viewModel.saveResultImage() }, // 传入保存结果图片的回调
-                isProcessing = uiState.isProcessing, // 传入是否正在处理的状态
-                canSave = uiState.resultBitmap != null // 传入是否可以保存的判断（结果Bitmap不为空）
-            ) // ControlPanel调用结束
-        } // 控制面板项结束
-
-        // 阈值滑块 // 注释标记：以下是阈值滑块区域
-        item { // 列表项：阈值滑块
-            ThresholdSlider( // 渲染阈值调节滑块
-                threshold = uiState.threshold, // 传入当前阈值
-                onThresholdChange = { viewModel.updateThreshold(it) } // 传入阈值变更回调
-            ) // ThresholdSlider调用结束
-        } // 阈值滑块项结束
-
-        // 检测阈值滑块 // 注释标记：以下是检测阈值滑块区域
-        item { // 列表项：检测阈值滑块
-            ThresholdSlider( // 渲染检测阈值调节滑块
-                threshold = uiState.detectionThreshold, // 传入当前检测阈值
-                onThresholdChange = { viewModel.updateDetectionThreshold(it) }, // 传入检测阈值变更回调
-                label = "检测阈值" // 设置滑块标签为"检测阈值"
-            ) // ThresholdSlider调用结束
-        } // 检测阈值滑块项结束
-
-        // 日志卡片 // 注释标记：以下是日志卡片区域
+                onLoadTemplate = { templatePicker() } // 传入加载模板回调
+            ) // RecognitionSettingsCard调用结束
+        } // 识别设置项结束
+        
+        // 处理状态显示 // 参照VideoProcessingStatus风格
+        item { // 列表项：处理状态
+            ProcessingStatus( // 渲染处理状态组件
+                isProcessing = uiState.isProcessing, // 传入是否正在处理
+                statusMessage = uiState.statusMessage, // 传入状态消息
+                isReady = uiState.isReady // 传入是否就绪
+            ) // ProcessingStatus调用结束
+        } // 处理状态项结束
+        
+        // 控制按钮 // 参照VideoControlButtons风格
+        item { // 列表项：控制按钮
+            ImageControlButtons( // 渲染图片控制按钮
+                isProcessing = uiState.isProcessing, // 传入是否正在处理
+                hasImage = uiState.inputImageUri != null, // 传入是否已选择图片
+                hasResult = uiState.resultBitmap != null, // 传入是否有识别结果
+                onStartRecognition = { viewModel.startRecognition() }, // 传入开始识别回调
+                onCancelProcessing = { viewModel.cancelProcessing() }, // 传入取消处理回调
+                onSaveImage = { viewModel.saveResultImage() }, // 传入保存图片回调
+                onBatchRecognize = { batchImagePicker() } // 传入批量识别回调
+            ) // ImageControlButtons调用结束
+        } // 控制按钮项结束
+        
+        // 识别结果预览 // 参照VideoFramePreviewCard风格
+        if (uiState.resultBitmap != null) { // 如果有识别结果
+            item { // 列表项：识别结果标题
+                Text( // 显示结果预览标题
+                    "识别结果", // 标题文本
+                    style = MaterialTheme.typography.titleMedium, // 使用中标题排版样式
+                    modifier = Modifier.padding(top = 8.dp) // 顶部添加8dp内边距
+                ) // 标题Text结束
+            } // 结果标题项结束
+            
+            item { // 列表项：识别结果卡片
+                Card( // 创建结果卡片
+                    modifier = Modifier.fillMaxWidth(), // 填满宽度
+                    shape = RoundedCornerShape(16.dp), // 16dp圆角
+                    colors = CardDefaults.cardColors( // 设置卡片颜色
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant // 使用表面变体色
+                    )
+                ) { // Card内容开始
+                    Column(Modifier.padding(16.dp)) { // 创建垂直布局，添加16dp内边距
+                        Text( // 显示识别完成提示
+                            "✅ 识别完成", // 完成提示文本
+                            style = MaterialTheme.typography.bodyMedium, // 使用正文中号排版样式
+                            fontWeight = FontWeight.SemiBold, // 设置半粗体字重
+                            color = MaterialTheme.colorScheme.primary // 使用主题主色
+                        ) // 提示Text结束
+                        
+                        Spacer(Modifier.height(8.dp)) // 创建8dp垂直间距
+                        
+                        Text( // 显示处理结果提示
+                            "识别结果已显示在上方预览区域\n点击「保存结果」可将结果保存到相册", // 提示文本（两行）
+                            style = MaterialTheme.typography.bodySmall, // 使用正文小号排版样式
+                            color = MaterialTheme.colorScheme.onSurfaceVariant // 设置颜色为表面变体上的文字色
+                        ) // 提示Text结束
+                    } // Column内容结束
+                } // Card内容结束
+            } // 结果卡片项结束
+        } // 结果预览条件判断结束
+        
+        // 日志卡片 // 保留日志显示功能
         item { // 列表项：日志卡片
             LogCard(logs = uiState.logs) // 渲染日志卡片，传入日志列表
         } // 日志卡片项结束
@@ -512,24 +578,66 @@ fun TemplatesScreen( // 定义模板管理屏幕函数
         item { Spacer(Modifier.height(12.dp)) } // 列表项：创建12dp垂直间距
 
         if (uiState.templateList.isEmpty()) { // 如果模板列表为空
-            item { // 列表项：空状态提示卡片
+            item { // 列表项：优化后的空状态提示卡片（方案C）
                 Card( // 创建卡片容器
                     colors = CardDefaults.cardColors( // 设置卡片颜色
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant // 使用表面变体色作为卡片背景
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) // 使用半透明的表面变体色
                     ), // 卡片颜色配置结束
-                    modifier = Modifier.fillMaxWidth() // 填满宽度
+                    modifier = Modifier.fillMaxWidth(), // 填满宽度
+                    shape = RoundedCornerShape(20.dp) // 增大圆角至20dp
                 ) { // Card内容开始
-                    Column(Modifier.padding(24.dp)) { // 创建垂直布局，添加24dp内边距
+                    Column( // 创建垂直布局容器
+                        modifier = Modifier.padding(32.dp), // 增大内边距至32dp，更宽敞
+                        horizontalAlignment = Alignment.CenterHorizontally, // 水平居中对齐
+                        verticalArrangement = Arrangement.Center // 垂直居中对齐
+                    ) { // Column内容开始
+                        // 图标容器
+                        Box( // 创建图标容器Box
+                            modifier = Modifier // 开始链式修饰符
+                                .size(80.dp) // 设置大小为80dp
+                                .clip(CircleShape) // 裁剪为圆形
+                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)), // 设置半透明主色容器背景
+                            contentAlignment = Alignment.Center // 内容居中对齐
+                        ) { // Box内容开始
+                            Icon( // 显示文件夹图标
+                                Icons.Default.Folder, // 使用文件夹图标
+                                contentDescription = "暂无模板", // 无障碍描述
+                                modifier = Modifier.size(40.dp), // 增大图标至40dp
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f) // 设置颜色为半透明主色
+                            ) // Icon结束
+                        } // Box内容结束
+                        
+                        Spacer(Modifier.height(20.dp)) // 增大垂直间距至20dp
+                        
                         Text( // 显示空状态标题
                             "暂无模板", // 标题文本
-                            style = MaterialTheme.typography.titleMedium // 使用中标题排版样式
+                            style = MaterialTheme.typography.titleMedium, // 使用中标题排版样式
+                            fontWeight = FontWeight.SemiBold // 设置字体为半粗体
                         ) // 标题Text结束
+                        
                         Spacer(Modifier.height(8.dp)) // 创建8dp垂直间距
+                        
                         Text( // 显示空状态说明
-                            "请导入 NPZ 模板文件，导入后将自动持久化保存", // 说明文本
-                            style = MaterialTheme.typography.bodySmall, // 使用小正文排版样式
-                            color = MaterialTheme.colorScheme.onSurfaceVariant // 设置颜色为表面变体上的文字色
+                            "请导入 NPZ 模板文件\n导入后将自动持久化保存", // 说明文本（两行）
+                            style = MaterialTheme.typography.bodyMedium, // 使用中等正文排版样式
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, // 设置颜色为表面变体上的文字色
+                            textAlign = TextAlign.Center // 居中对齐
                         ) // 说明Text结束
+                        
+                        Spacer(Modifier.height(24.dp)) // 增大垂直间距至24dp
+                        
+                        Button( // 创建引导按钮
+                            onClick = { templatePicker.launch("*/*") }, // 点击时启动模板选择器
+                            shape = RoundedCornerShape(12.dp), // 设置12dp圆角
+                            colors = ButtonDefaults.buttonColors( // 设置按钮颜色
+                                containerColor = MaterialTheme.colorScheme.primary, // 设置容器颜色为主题主色
+                                contentColor = MaterialTheme.colorScheme.onPrimary // 设置内容颜色为主色上的对比色
+                            )
+                        ) { // Button内容开始
+                            Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(18.dp)) // 显示文件夹图标
+                            Spacer(Modifier.width(8.dp)) // 创建8dp水平间距
+                            Text("导入模板", style = MaterialTheme.typography.labelMedium) // 按钮文字"导入模板"
+                        } // Button结束
                     } // Column内容结束
                 } // Card内容结束
             } // 空状态项结束
@@ -1338,3 +1446,294 @@ fun LogCard(logs: List<String>) { // 定义日志卡片函数，接收日志字�
         } // Column内容结束
     } // Card内容结束
 } // LogCard函数结束
+
+// --- 新版主页组件（参照视频识别界面风格） ---
+
+// 定义图片源卡片组件（参照VideoSourceCard风格）
+@Composable
+fun ImageSourceCard(
+    imageUri: Uri?,
+    resultBitmap: android.graphics.Bitmap?,
+    onSelectImage: () -> Unit,
+    onReselectImage: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                "图片源",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            
+            Spacer(Modifier.height(12.dp))
+            
+            if (imageUri == null && resultBitmap == null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .clickable { onSelectImage() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.Image,
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "选择图片文件开始识别",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+                
+                Spacer(Modifier.height(12.dp))
+                
+                Button(
+                    onClick = onSelectImage,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("选择图片")
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                ) {
+                    if (resultBitmap != null) {
+                        Image(
+                            bitmap = resultBitmap.asImageBitmap(),
+                            contentDescription = "识别结果",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                    } else if (imageUri != null) {
+                        AsyncImage(
+                            model = imageUri,
+                            contentDescription = "预览图片",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                    }
+                }
+                
+                Spacer(Modifier.height(8.dp))
+                
+                OutlinedButton(
+                    onClick = onReselectImage,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("重新选择")
+                }
+            }
+        }
+    }
+}
+
+// 定义识别设置卡片组件（参照VideoSettingsCard风格）
+@Composable
+fun RecognitionSettingsCard(
+    threshold: Float,
+    onThresholdChange: (Float) -> Unit,
+    detectionThreshold: Float,
+    onDetectionThresholdChange: (Float) -> Unit,
+    templateName: String?,
+    onLoadTemplate: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                "识别设置",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            
+            Spacer(Modifier.height(8.dp))
+            
+            OutlinedButton(
+                onClick = onLoadTemplate,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(templateName ?: "加载模板", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            
+            Spacer(Modifier.height(12.dp))
+            
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("相似度阈值", style = MaterialTheme.typography.bodyMedium)
+                Text(String.format("%.2f", threshold), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            }
+            
+            Slider(
+                value = threshold,
+                onValueChange = onThresholdChange,
+                valueRange = 0.0f..1.0f,
+                steps = 99,
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
+            
+            Spacer(Modifier.height(4.dp))
+            
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("检测阈值", style = MaterialTheme.typography.bodyMedium)
+                Text(String.format("%.2f", detectionThreshold), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            }
+            
+            Slider(
+                value = detectionThreshold,
+                onValueChange = onDetectionThresholdChange,
+                valueRange = 0.0f..1.0f,
+                steps = 99,
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
+        }
+    }
+}
+
+// 定义处理状态显示组件（参照VideoProcessingStatus风格）
+@Composable
+fun ProcessingStatus(
+    isProcessing: Boolean,
+    statusMessage: String,
+    isReady: Boolean
+) {
+    if (isProcessing || !isReady) {
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = if (isProcessing)
+                    MaterialTheme.colorScheme.primaryContainer
+                else
+                    MaterialTheme.colorScheme.surfaceVariant
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.padding(16.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (isProcessing) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    } else {
+                        Icon(
+                            if (isReady) Icons.Default.CheckCircle else Icons.Default.Info,
+                            contentDescription = null,
+                            tint = if (isReady) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    
+                    Text(
+                        statusMessage,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        }
+    }
+}
+
+// 定义图片控制按钮组件（参照VideoControlButtons风格）
+@Composable
+fun ImageControlButtons(
+    isProcessing: Boolean,
+    hasImage: Boolean,
+    hasResult: Boolean,
+    onStartRecognition: () -> Unit,
+    onCancelProcessing: () -> Unit,
+    onSaveImage: () -> Unit,
+    onBatchRecognize: () -> Unit
+) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (!isProcessing) {
+            Button(
+                onClick = onStartRecognition,
+                enabled = hasImage,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("开始识别")
+            }
+            
+            OutlinedButton(
+                onClick = onBatchRecognize,
+                enabled = !isProcessing,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("批量识别")
+            }
+        } else {
+            Button(
+                onClick = onCancelProcessing,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("取消")
+            }
+        }
+        
+        if (hasResult && !isProcessing) {
+            Button(
+                onClick = onSaveImage,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("保存结果")
+            }
+        }
+    }
+}
