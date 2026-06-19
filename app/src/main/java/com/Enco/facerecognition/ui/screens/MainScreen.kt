@@ -148,7 +148,7 @@ fun MainScreen( // 定义主屏幕函数，是应用的顶层UI入口
                 CenterAlignedTopAppBar(
                     title = {
                         Text(
-                            "FaceFound",
+                            "FaceRecognition",
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimary
                         )
@@ -273,7 +273,7 @@ fun DrawerContent( // 定义侧边抽屉内容函数
             }
             Spacer(Modifier.height(10.dp))
             Text(
-                "FaceFound",
+                "FaceRecognition",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )

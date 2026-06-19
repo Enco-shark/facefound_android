@@ -122,7 +122,7 @@ private fun AppInfoCard() { // 定义应用信息卡片函数
 
             // 应用名称
             Text( // 显示应用名称
-                text = "FaceFound", // 文本内容
+                text = "FaceRecognition", // 文本内容
                 style = MaterialTheme.typography.headlineMedium, // 使用中标题排版样式
                 fontWeight = FontWeight.Bold, // 设置字体为粗体
                 textAlign = TextAlign.Center // 文本居中对齐
@@ -184,19 +184,8 @@ private fun DevelopersCard() { // 定义开发人员卡片函数
             // 开发人员列表
             DeveloperItem( // 渲染开发人员项
                 name = "Enco", // 开发人员名称
-                role = "项目负责人 & 核心开发", // 角色描述
+                role = "项目负责人 & 核心开发 & UI设计 & 测试", // 角色描述
                 icon = Icons.Default.Person // 使用人物图标
-            ) // 开发人员项调用结束
-
-            HorizontalDivider( // 显示水平分割线
-                modifier = Modifier.padding(vertical = 8.dp), // 上下各留8dp间距
-                color = MaterialTheme.colorScheme.outlineVariant // 设置分割线颜色
-            ) // HorizontalDivider结束
-
-            DeveloperItem( // 渲染开发人员项
-                name = "FaceFound 团队", // 开发人员名称
-                role = "UI设计 & 测试", // 角色描述
-                icon = Icons.Default.Group // 使用群组图标
             ) // 开发人员项调用结束
         } // Column内容结束
     } // Card内容结束
@@ -412,7 +401,7 @@ private fun ProjectLinksCard( // 定义项目链接卡片函数
                 title = "GitHub 仓库", // 链接标题
                 subtitle = "项目源代码和文档", // 链接副标题
                 icon = Icons.Default.Code, // 使用代码图标
-                url = "https://github.com/Enco-shark/facefound_android", // 链接地址
+                url = "https://github.com/Enco-shark/facerecognition_android", // 链接地址
                 onClick = onLinkClick // 传入点击回调
             ) // 链接项调用结束
 
@@ -425,7 +414,7 @@ private fun ProjectLinksCard( // 定义项目链接卡片函数
                 title = "问题反馈", // 链接标题
                 subtitle = "提交 Bug 报告或功能建议", // 链接副标题
                 icon = Icons.Default.BugReport, // 使用Bug报告图标
-                url = "https://github.com/Enco-shark/facefound_android/issues", // 链接地址
+                url = "https://github.com/Enco-shark/facerecognition_android/issues", // 链接地址
                 onClick = onLinkClick // 传入点击回调
             ) // 链接项调用结束
 
@@ -559,7 +548,7 @@ private fun LicenseCard() { // 定义许可证卡片函数
                     modifier = Modifier.padding(12.dp) // 添加12dp内边距
                 ) { // Column内容开始
                     Text( // 显示项目许可证标题
-                        text = "FaceFound - 人脸识别 Android 应用", // 文本内容
+                        text = "FaceRecognition - 人脸识别 Android 应用", // 文本内容
                         style = MaterialTheme.typography.bodyMedium, // 使用中正文排版样式
                         fontWeight = FontWeight.Bold // 设置字体为粗体
                     ) // 项目许可证标题Text结束
