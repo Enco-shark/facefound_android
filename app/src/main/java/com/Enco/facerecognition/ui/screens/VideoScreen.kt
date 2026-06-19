@@ -155,12 +155,12 @@ fun VideoScreen(
         }
     }
 
-    // 使用LazyColumn创建可滚动的垂直列表布局
+    // 使用LazyColumn创建可滚动的垂直列表布局（现代简洁风：加大留白）
     LazyColumn(
-        // 应用外部传入的修饰符，并添加16dp的内边距
-        modifier = modifier.padding(16.dp),
-        // 设置子项之间的垂直间距为16dp
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        // 加大水平留白到20dp，垂直16dp
+        modifier = modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+        // 子项间距加大到24dp，更透气
+        verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         // 第一个列表项：屏幕标题
         item {

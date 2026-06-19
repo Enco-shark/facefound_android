@@ -144,64 +144,40 @@ fun MainScreen( // 定义主屏幕函数，是应用的顶层UI入口
         } // 抽屉内容定义结束
     ) { // ModalNavigationDrawer的内容区域开始
         Scaffold( // 创建脚手架，提供顶部栏和内容区域的基础布局结构
-            topBar = { // 定义顶部应用栏区域
-                // 自定义顶部栏：渐变背景 + 悬浮阴影效果
-                Box( // 用Box包裹实现渐变背景
-                    Modifier
-                        .fillMaxWidth()
-                        .height(56.dp + 12.dp) // TopAppBar默认高度56dp + 底部阴影区域
-                ) {
-                    // 渐变背景层
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(56.dp)
-                            .background(
-                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient( // 水平渐变，更有动感
-                                    colors = listOf(
-                                        MaterialTheme.colorScheme.primary,      // 渐变起点：主色（蓝紫）
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.85f), // 中点：略透明
-                                        GradientEnd.copy(alpha = 0.7f)        // 渐变终点：青蓝，更透明
-                                    )
-                                )
-                            )
-                            .shadow(6.dp, RoundedCornerShape(0.dp)) // 底部阴影，增加层次感
-                    )
-                    // TopAppBar内容层（在渐变背景之上）
-                    CenterAlignedTopAppBar(
-                        title = {
-                            Text(
-                                "FaceFound",
-                                fontWeight = FontWeight.Bold, // 加粗标题
-                                color = MaterialTheme.colorScheme.onPrimary // 白色标题，在渐变上清晰可见
-                            )
-                        },
-                        navigationIcon = { // 定义导航图标区域（左侧图标）
-                            IconButton(onClick = { scope.launch { drawerState.open() } }) { // 创建图标按钮，点击时在协程中打开抽屉
-                                Icon(
-                                    Icons.Default.Menu,
-                                    contentDescription = "菜单",
-                                    tint = MaterialTheme.colorScheme.onPrimary // 白色图标
-                                )
-                            } // 导航图标按钮结束
-                        }, // 导航图标区域结束
-                        actions = { // 定义操作区域（右侧图标）
-                            IconButton(onClick = { viewModel.toggleTheme() }) { // 创建图标按钮，点击时切换深色/浅色主题
-                                Icon(
-                                    Icons.Default.Palette,
-                                    contentDescription = "切换主题",
-                                    tint = MaterialTheme.colorScheme.onPrimary // 白色图标
-                                )
-                            } // 主题切换按钮结束
-                        }, // 操作区域结束
-                        colors = androidx.compose.material3.TopAppBarDefaults.centerAlignedTopAppBarColors(
-                            containerColor = Color.Transparent, // 容器透明，显示底层渐变
-                            titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                            navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                            actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+            topBar = { // 定义顶部应用栏区域（现代简洁风：纯色，无渐变）
+                CenterAlignedTopAppBar(
+                    title = {
+                        Text(
+                            "FaceFound",
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary
                         )
-                    ) // CenterAlignedTopAppBar结束
-                } // Box结束
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(
+                                Icons.Default.Menu,
+                                contentDescription = "菜单",
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { viewModel.toggleTheme() }) {
+                            Icon(
+                                Icons.Default.Palette,
+                                contentDescription = "切换主题",
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
+                    },
+                    colors = androidx.compose.material3.TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primary, // 纯色主色，无渐变
+                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                        actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                )
             } // 顶部栏定义结束
         ) { paddingValues -> // Scaffold的内容区域开始，接收系统提供的内边距值
             when (uiState.currentScreen) { // 根据当前屏幕状态进行条件分支渲染
@@ -272,58 +248,41 @@ fun DrawerContent( // 定义侧边抽屉内容函数
             .fillMaxHeight() // 使列容器填满整个高度
             .background(MaterialTheme.colorScheme.surface) // 设置背景色为主题表面颜色
     ) { // Column内容区域开始
-        Box( // 创建Box容器，用于绘制抽屉头部区域
-            Modifier // 开始链式修饰符
-                .fillMaxWidth() // 使头部区域填满宽度
-                .background(
-                    brush = androidx.compose.ui.graphics.Brush.verticalGradient( // 创建垂直渐变背景
-                        colors = listOf( // 渐变颜色列表
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f), // 起始颜色：半透明主色容器色
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f) // 结束颜色：更透明的主色容器色
-                        )
-                    )
-                ) // 设置渐变背景
-                .padding(horizontal = 24.dp, vertical = 32.dp) // 添加24dp水平、32dp垂直内边距
-                .padding(top = 24.dp) // 额外添加顶部24dp内边距以避开状态栏
-        ) { // Box头部内容开始
-            Column( // 创建垂直布局排列头部内容
-                horizontalAlignment = Alignment.CenterHorizontally // 水平居中对齐
-            ) { // Column内容开始
-                Box( // 创建图标容器Box
-                    Modifier // 开始链式修饰符
-                        .size(72.dp) // 设置大小为72dp的正方形，增大图标区域
-                        .clip(RoundedCornerShape(20.dp)) // 裁剪为20dp圆角矩形，更圆润
-                        .background(
-                            brush = androidx.compose.ui.graphics.Brush.linearGradient( // 创建线性渐变背景
-                                colors = listOf( // 渐变颜色列表
-                                    MaterialTheme.colorScheme.primary, // 起始颜色：主题主色
-                                    MaterialTheme.colorScheme.tertiary // 结束颜色：主题第三色
-                                )
-                            )
-                        ) // 设置渐变背景
-                        .padding(16.dp), // 添加16dp内边距
-                    contentAlignment = Alignment.Center // 内容居中对齐
-                ) { // 图标Box内容开始
-                    Icon( // 显示应用图标
-                        Icons.Default.Image, // 使用图片图标作为应用Logo
-                        contentDescription = null, // 无障碍描述为空，因为是装饰性图标
-                        tint = MaterialTheme.colorScheme.onPrimary, // 设置图标颜色为主色上的对比色
-                        modifier = Modifier.size(36.dp) // 设置图标大小为36dp，增大图标
-                    ) // Icon结束
-                } // 图标Box内容结束
-                Spacer(Modifier.height(12.dp)) // 创建12dp的垂直间距
-                Text( // 显示应用名称
-                    "FaceFound", // 文本内容为应用名称
-                    style = MaterialTheme.typography.titleLarge, // 使用大标题排版样式
-                    fontWeight = FontWeight.Bold // 设置字体为粗体
-                ) // 应用名称Text结束
-                Text( // 显示应用副标题
-                    "离线人脸识别", // 文本内容为功能描述
-                    style = MaterialTheme.typography.bodySmall, // 使用小正文排版样式
-                    color = MaterialTheme.colorScheme.onSurfaceVariant // 设置颜色为表面变体上的文字色
-                ) // 副标题Text结束
-            } // Column头部内容结束
-        } // Box头部内容结束
+        // 抽屉头部：紧凑现代风
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                .padding(horizontal = 20.dp, vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // 应用图标（紧凑，48dp）
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Image,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "FaceFound",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "离线人脸识别",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } // 抽屉头部结束
 
         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) // 显示水平分割线，左右各留16dp边距
 
@@ -376,55 +335,52 @@ fun DrawerMenuItem( // 定义抽屉菜单项函数
         label = "drawerContent" // 动画标签，用于Compose工具调试
     ) // 内容颜色动画结束
 
-    Row( // 创建水平布局容器，排列图标和文字
-        Modifier // 开始链式修饰符
-            .fillMaxWidth() // 填满父容器宽度
-            .padding(horizontal = 16.dp, vertical = 4.dp) // 增大水平边距至16dp，垂直边距至4dp
-            .clip(RoundedCornerShape(16.dp)) // 增大圆角至16dp，更圆润
-            .background(bgColor) // 应用动画背景色
-            .clickable { onClick() } // 添加点击事件，触发导航回调
-            .padding(horizontal = 20.dp, vertical = 16.dp), // 增大内边距，更宽敞的触摸区域
-        verticalAlignment = Alignment.CenterVertically // 子组件垂直居中对齐
+    Row( // 水平布局：紧凑现代风
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(bgColor)
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) { // Row内容区域开始
-        Box( // 创建图标容器，为选中状态添加背景指示
-            modifier = Modifier // 开始链式修饰符
-                .size(40.dp) // 设置固定大小40dp
-                .clip(RoundedCornerShape(12.dp)) // 裁剪为12dp圆角
-                .background( // 设置背景
-                    if (isSelected) // 条件判断：是否选中
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) // 选中时使用更淡的主色背景
-                    else // 未选中
-                        Color.Transparent // 透明背景
-                ), // 背景设置结束
-            contentAlignment = Alignment.Center // 内容居中对齐
-        ) { // Box内容开始
-            Icon( // 显示菜单项图标
-                icon, // 传入图标矢量资源
-                contentDescription = title, // 无障碍描述使用菜单项标题
-                tint = contentColor, // 应用动画内容颜色
-                modifier = Modifier.size(22.dp) // 稍减小图标大小为22dp，更精致
-            ) // Icon结束
-        } // Box内容结束
+        Box( // 图标容器
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(
+                    if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                    else Color.Transparent
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                icon,
+                contentDescription = title,
+                tint = contentColor,
+                modifier = Modifier.size(20.dp)
+            )
+        }
         
-        Spacer(Modifier.width(20.dp)) // 增大水平间距至20dp，更宽敞
+        Spacer(Modifier.width(16.dp))
         
-        Text( // 显示菜单项标题
-            title, // 文本内容为标题
-            style = MaterialTheme.typography.bodyLarge, // 使用大正文排版样式
-            color = contentColor, // 应用动画内容颜色
-            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal, // 选中时半粗体，否则正常粗细
-            modifier = Modifier.weight(1f) // 占据剩余宽度，推着可能的右侧指示器
-        ) // Text结束
+        Text(
+            title,
+            style = MaterialTheme.typography.bodyMedium,
+            color = contentColor,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+            modifier = Modifier.weight(1f)
+        )
         
-        // 选中指示器
-        if (isSelected) { // 条件判断：是否选中
-            Box( // 创建选中指示器
-                modifier = Modifier // 开始链式修饰符
-                    .size(6.dp) // 设置大小为6dp的小圆点
-                    .clip(CircleShape) // 裁剪为圆形
-                    .background(MaterialTheme.colorScheme.primary) // 设置背景色为主题主色
-            ) // Box结束
-        } // 条件结束
+        if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .size(5.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+            )
+        }
     } // Row内容区域结束
 } // DrawerMenuItem函数结束
 
@@ -442,9 +398,9 @@ fun MainContent( // 定义主页内容函数
 ) { // 函数体开始
     val uiState by viewModel.uiState.collectAsState() // 收集ViewModel的UI状态
 
-    LazyColumn( // 创建可滚动的垂直懒加载列表
-        modifier = modifier.padding(16.dp), // 应用外部修饰符并添加16dp内边距
-        verticalArrangement = Arrangement.spacedBy(16.dp) // 子项之间设置16dp的垂直间距
+    LazyColumn( // 创建可滚动的垂直懒加载列表（现代简洁风：加大留白）
+        modifier = modifier.padding(horizontal = 20.dp, vertical = 16.dp), // 左右20dp留白，上下16dp
+        verticalArrangement = Arrangement.spacedBy(24.dp) // 子项之间设置24dp垂直间距，更透气
     ) { // LazyColumn内容区域开始
         // 状态卡片 // 注释标记：以下是状态卡片区域
         item { // 列表项：状态卡片

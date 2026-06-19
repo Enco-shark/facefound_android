@@ -25,11 +25,15 @@ import kotlinx.coroutines.flow.flowOn // 导入flowOn操作符
 import kotlinx.coroutines.isActive // 导入isActive协程状态检查
 import kotlinx.coroutines.launch // 导入协程启动函数
 import kotlinx.coroutines.withContext // 导入withContext协程切换
+import kotlinx.coroutines.delay // 导入延迟函数，用于输出协程的等待
+import kotlinx.coroutines.sync.Semaphore // 导入信号量，用于限制并发数
+import kotlinx.coroutines.sync.withPermit // 导入withPermit扩展函数
 import java.io.File // 导入文件类
 import java.nio.ByteBuffer // 导入字节缓冲区
 import kotlin.coroutines.coroutineContext // 导入协程上下文
 import kotlin.math.max // 导入max数学函数
 import kotlin.math.min // 导入min数学函数
+import java.util.concurrent.PriorityBlockingQueue // 导入优先级阻塞队列，用于保序输出
 
 /**
  * 视频人脸识别处理器
@@ -65,7 +69,7 @@ class VideoProcessor(private val faceRecognizer: OnnxFaceRecognition) { // 视�
     data class ProcessedFrame( // 处理后的帧数据类
         val frameIndex: Int, // 帧序号
         val presentationTimeUs: Long, // 展示时间戳（微秒）
-        val bitmap: Bitmap, // 绘制了检测结果的位图
+        val bitmap: Bitmap?, // 绘制了检测结果的位图（可空）
         val detections: List<OnnxFaceRecognition.FaceDetection>, // 检测结果列表
         val names: List<String> // 识别出的人名列表
     )
@@ -132,16 +136,18 @@ class VideoProcessor(private val faceRecognizer: OnnxFaceRecognition) { // 视�
         }
     }.flowOn(Dispatchers.IO) // 在IO线程执行
 
-    fun processVideoFrames( // 处理视频帧并识别人脸（A2优化版：channelFlow流水线）
+    fun processVideoFrames( // 处理视频帧并识别人脸（并行推理优化版）
         context: Context, // 上下文
         videoUri: Uri, // 视频URI
         templates: Map<String, FloatArray>, // 人脸模板库
         threshold: Float, // 相似度阈值
         detectionThreshold: Float = 0.5f, // 检测置信度阈值
+        maxConcurrentFrames: Int = 2, // 最大并行帧数
         onProgress: (ProcessProgress) -> Unit // 进度回调
     ): Flow<ProcessedFrame> = channelFlow { // 使用channelFlow支持协程内启动子协程
         val retriever = MediaMetadataRetriever() // 创建元数据提取器
-        Log.d(TAG, "🎬 开始处理视频: $videoUri") // 记录开始处理视频的日志
+        Log.d(TAG, "🎬 开始处理视频（并行推理优化版）: $videoUri") // 记录开始处理视频的日志
+        Log.d(TAG, "🚀 最大并行帧数: $maxConcurrentFrames") // 记录并行配置
 
         try { // 异常保护
             retriever.setDataSource(context, videoUri) // 设置数据源
@@ -151,15 +157,25 @@ class VideoProcessor(private val faceRecognizer: OnnxFaceRecognition) { // 视�
                 Log.e(TAG, "无法获取视频时长") // 打印错误日志
                 return@channelFlow // 退出
             }
-            Log.d(TAG, "📏 视频时长: ${durationMs}ms，使用OPTION_CLOSEST_SYNC加速帧提取") // 记录视频信息
+            Log.d(TAG, "📏 视频时长: ${durationMs}ms") // 记录视频信息
 
             val intervalUs = FRAME_SAMPLE_INTERVAL_US // 采样间隔
+            val cpuCores = Runtime.getRuntime().availableProcessors() // 获取CPU核心数
+            val semaphore = Semaphore(maxConcurrentFrames.coerceAtMost(cpuCores - 1)) // 创建信号量，限制并行帧数
 
-            // === 创建帧通道，容量=3，实现预取缓冲区 ===
+            // === 创建帧通道，容量=并行数*2，实现预取缓冲区 ===
             val frameChannel = Channel<Triple<Bitmap?, Long, Int>>( // Triple<位图, 时间戳, 帧序号>
-                capacity = 3, // 缓冲3帧，有效隐藏提取延迟
+                capacity = maxConcurrentFrames * 2, // 缓冲N*2帧
                 onBufferOverflow = BufferOverflow.SUSPEND // 缓冲区满时挂起生产者
             )
+
+            // === 优先级队列：保序输出（按帧序号排序）===
+            val resultQueue = PriorityBlockingQueue<ProcessedFrame>( // 优先级队列
+                11, // 初始容量
+                compareBy { it.frameIndex } // 按帧序号排序
+            )
+            var expectedFrameIndex = 0 // 期望的下一帧序号
+            var totalFrames = 0 // 总帧数（用于判断结束）
 
             // === 生产者协程：提取帧并发送到通道 ===
             val producerJob = launch(Dispatchers.IO) { // 在IO线程运行生产者
@@ -170,17 +186,18 @@ class VideoProcessor(private val faceRecognizer: OnnxFaceRecognition) { // 视�
                     while (timeUs <= durationMs * 1000) { // 循环直到超过视频时长
                         if (!isActive) break // 协程被取消则退出
 
-                        // 优化点：OPTION_CLOSEST_SYNC 定位到最近关键帧，比 OPTION_CLOSEST 快2x
+                        // 使用OPTION_CLOSEST_SYNC关键帧定位，速度更快
                         val frameBitmap = retriever.getFrameAtTime(
                             timeUs,
-                            MediaMetadataRetriever.OPTION_CLOSEST_SYNC // 关键帧定位，速度更快
+                            MediaMetadataRetriever.OPTION_CLOSEST_SYNC
                         )
                         frameChannel.send(Triple(frameBitmap, timeUs, frameIndex)) // 发送到通道
 
                         timeUs += intervalUs // 推进时间位置
                         frameIndex++ // 递增帧计数器
                     }
-                    Log.d(TAG, "✅ 生产者完成：共提取 $frameIndex 帧") // 记录完成日志
+                    totalFrames = frameIndex // 记录总帧数
+                    Log.d(TAG, "✅ 生产者完成：共提取 $totalFrames 帧") // 记录完成日志
                 } catch (e: Exception) { // 捕获异常
                     Log.e(TAG, "❌ 生产者异常: ${e.message}") // 记录异常日志
                     frameChannel.close(e) // 关闭通道并传递异常
@@ -190,52 +207,102 @@ class VideoProcessor(private val faceRecognizer: OnnxFaceRecognition) { // 视�
                 }
             }
 
-            // === 消费者：从通道取帧 → 推理 → 发射结果 ===
-            var resultIndex = 0 // 结果帧计数器
-            try { // 异常保护
-                for ((frameBitmap, timeUs, _) in frameChannel) { // 从通道接收帧（挂起等待）
-                    if (!coroutineContext.isActive) break // 协程被取消则退出
+            // === 多个消费者协程：并行推理 ===
+            val consumerJobs = (0 until maxConcurrentFrames).map { consumerId ->
+                launch(Dispatchers.Default) { // 在Default调度器执行（推理为CPU密集型）
+                    for ((frameBitmap, timeUs, frameIndex) in frameChannel) { // 从通道接收帧（挂起等待）
+                        if (!coroutineContext.isActive) break // 协程被取消则退出
 
-                    if (frameBitmap == null) { // 帧提取失败
-                        resultIndex++ // 递增结果计数器
-                        continue // 跳过此帧
+                        if (frameBitmap == null) { // 帧提取失败
+                            // 发送空结果（保持序号连续）
+                            synchronized(resultQueue) {
+                                resultQueue.offer(
+                                    ProcessedFrame(
+                                        frameIndex = frameIndex,
+                                        presentationTimeUs = timeUs,
+                                        bitmap = null, // 传递null而不是frameBitmap
+                                        detections = emptyList(),
+                                        names = mutableListOf()
+                                    )
+                                )
+                            }
+                            continue // 跳过此帧
+                        }
+
+                        // 获取信号量（限制并行数）
+                        semaphore.withPermit {
+                            // 执行人脸检测和识别（并行执行）
+                            val detectionStartTime = System.currentTimeMillis() // 记录检测开始时间
+                            val detections = faceRecognizer.detectFaces(frameBitmap, detectionThreshold) // 检测人脸
+
+                            val results = faceRecognizer.recognizeFacesParallel( // 并行识别
+                                frameBitmap, detections, templates, threshold
+                            )
+                            val names = results.map { it.name }.toMutableList() // 提取人名
+
+                            val processingTime = System.currentTimeMillis() - detectionStartTime // 计算处理耗时
+                            Log.v(TAG, "🖼️ 消费者#$consumerId | 帧 $frameIndex 处理耗时: ${processingTime}ms, 检测到 ${detections.size} 张人脸")
+
+                            val drawnBitmap = drawVideoResultsInPlace(frameBitmap, detections, names) // 绘制结果
+
+                            // 将结果放入优先级队列（保序）
+                            synchronized(resultQueue) {
+                                resultQueue.offer(
+                                    ProcessedFrame(
+                                        frameIndex = frameIndex,
+                                        presentationTimeUs = timeUs,
+                                        bitmap = drawnBitmap,
+                                        detections = detections,
+                                        names = names
+                                    )
+                                )
+                            }
+                        }
                     }
-
-                    // 执行人脸检测和识别（与生产者提取下一帧并行执行）
-                    val detectionStartTime = System.currentTimeMillis() // 记录检测开始时间
-                    val detections = faceRecognizer.detectFaces(frameBitmap, detectionThreshold) // 检测人脸
-
-                    val results = faceRecognizer.recognizeFacesParallel( // 并行识别
-                        frameBitmap, detections, templates, threshold
-                    )
-                    val names = results.map { it.name }.toMutableList() // 提取人名
-
-                    val processingTime = System.currentTimeMillis() - detectionStartTime // 计算处理耗时
-                    Log.v(TAG, "🖼️ 帧 $resultIndex 处理耗时: ${processingTime}ms, 检测到 ${detections.size} 张人脸")
-
-                    val drawnBitmap = drawVideoResultsInPlace(frameBitmap, detections, names) // 绘制结果
-
-                    onProgress(ProcessProgress(resultIndex, 0, detections, names)) // 回报进度
-
-                    send( // 发射到Flow收集者
-                        ProcessedFrame(
-                            frameIndex = resultIndex,
-                            presentationTimeUs = timeUs,
-                            bitmap = drawnBitmap,
-                            detections = detections,
-                            names = names
-                        )
-                    )
-
-                    resultIndex++ // 递增结果计数器
+                    Log.d(TAG, "✅ 消费者#$consumerId 完成") // 记录完成日志
                 }
-                Log.d(TAG, "✅ 消费者完成：共处理 $resultIndex 帧") // 记录完成日志
-            } catch (e: Exception) { // 捕获异常
-                Log.e(TAG, "❌ 消费者异常: ${e.message}", e) // 记录异常日志
-                throw e // 重新抛出异常
             }
 
-            producerJob.join() // 等待生产者协程结束，确保资源正确释放
+            // === 输出协程：从优先级队列取结果，按顺序发射 ===
+            val outputJob = launch { // 在当前协程上下文运行
+                var processedCount = 0 // 已处理帧数
+
+                while (processedCount < totalFrames || !resultQueue.isEmpty()) { // 循环直到所有帧都处理完
+                    if (!coroutineContext.isActive) break // 协程被取消则退出
+
+                    // 检查优先级队列头部是否是期望的帧
+                    val nextFrame = synchronized(resultQueue) {
+                        val head = resultQueue.peek() // 查看头部元素（不移除）
+                        if (head != null && head.frameIndex == expectedFrameIndex) { // 头部元素是期望的帧
+                            resultQueue.poll() // 取出并移除头部元素
+                        } else { // 不是期望的帧，等待
+                            null // 返回null
+                        }
+                    }
+
+                    if (nextFrame != null) { // 找到期望的帧
+                        onProgress(ProcessProgress(nextFrame.frameIndex, 0, nextFrame.detections, nextFrame.names)) // 回报进度
+
+                        send(nextFrame) // 发射到Flow收集者
+
+                        expectedFrameIndex++ // 递增期望帧序号
+                        processedCount++ // 递增已处理帧数
+
+                        if (processedCount % 10 == 0) { // 每10帧打印一次日志
+                            Log.d(TAG, "📤 已输出 $processedCount/$totalFrames 帧") // 记录输出进度
+                        }
+                    } else { // 未找到期望的帧，等待
+                        delay(1) // 短暂延迟，避免忙等待
+                    }
+                }
+
+                Log.d(TAG, "✅ 输出协程完成：共输出 $processedCount 帧") // 记录完成日志
+            }
+
+            // === 等待所有协程结束 ===
+            producerJob.join() // 等待生产者协程结束
+            consumerJobs.forEach { it.join() } // 等待所有消费者协程结束
+            outputJob.join() // 等待输出协程结束
 
         } catch (e: Exception) { // 处理外层异常
             Log.e(TAG, "视频帧处理失败: ${e.message}", e) // 打印错误日志
@@ -297,7 +364,7 @@ class VideoProcessor(private val faceRecognizer: OnnxFaceRecognition) { // 视�
                 if (!coroutineContext.isActive) break // 协程被取消则退出
 
                 val srcBitmap = frame.bitmap // 源位图
-                if (!srcBitmap.isRecycled) { // 位图未被回收
+                if (srcBitmap != null && !srcBitmap.isRecycled) { // 位图非空且未被回收
                     tempCanvas.drawColor(Color.BLACK) // 清空为黑色背景
                     val scale = min( // 计算缩放比例（保持宽高比）
                         alignedWidth.toFloat() / srcBitmap.width, // 宽度缩放比

@@ -50,9 +50,9 @@ fun AboutScreen( // 定义关于屏幕函数
 ) { // 函数体开始
     val context = LocalContext.current // 获取当前上下文，用于启动Intent
 
-    LazyColumn( // 创建可滚动的垂直懒加载列表
-        modifier = modifier.padding(16.dp), // 应用外部修饰符并添加16dp内边距
-        verticalArrangement = Arrangement.spacedBy(16.dp) // 子项之间设置16dp的垂直间距
+    LazyColumn( // 创建可滚动的垂直懒加载列表（现代简洁风：加大留白）
+        modifier = modifier.padding(horizontal = 20.dp, vertical = 16.dp), // 加大水平留白到20dp
+        verticalArrangement = Arrangement.spacedBy(24.dp) // 加大间距到24dp，更透气
     ) { // LazyColumn内容区域开始
         // 应用信息卡片
         item { // 列表项：应用信息卡片

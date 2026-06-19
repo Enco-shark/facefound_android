@@ -205,6 +205,16 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
             setIntraOpNumThreads(optimalThreads)
             // 设置算子之间并行线程数
             setInterOpNumThreads(optimalThreads)
+            
+            // 🚀 启用NNAPI硬件加速（Android 8.1+）
+            // NNAPI会自动调用设备的GPU/NPU/DSP进行推理
+            try {
+                addConfigEntry("NNAPI_FLAG", "1")  // 启用NNAPI
+                addConfigEntry("NNAPI_CPU_DISABLE", "0")  // 允许CPU回退
+                Log.i(TAG, "✅ NNAPI硬件加速已启用")
+            } catch (e: Exception) {
+                Log.w(TAG, "⚠️ NNAPI不可用，使用CPU推理: ${e.message}")
+            }
         } // 结束检测模型会话配置
 
         // 创建识别模型的会话配置选项
@@ -217,6 +227,16 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
             setIntraOpNumThreads(optimalThreads)
             // 设置算子之间并行线程数
             setInterOpNumThreads(optimalThreads)
+            
+            // 🚀 启用NNAPI硬件加速（Android 8.1+）
+            // NNAPI会自动调用设备的GPU/NPU/DSP进行推理
+            try {
+                addConfigEntry("NNAPI_FLAG", "1")  // 启用NNAPI
+                addConfigEntry("NNAPI_CPU_DISABLE", "0")  // 允许CPU回退
+                Log.i(TAG, "✅ NNAPI硬件加速已启用（识别模型）")
+            } catch (e: Exception) {
+                Log.w(TAG, "⚠️ NNAPI不可用，使用CPU推理: ${e.message}")
+            }
         } // 结束识别模型会话配置
 
         // 尝试加载检测模型
