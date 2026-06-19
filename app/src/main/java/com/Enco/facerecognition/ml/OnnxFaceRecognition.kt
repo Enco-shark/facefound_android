@@ -18,6 +18,8 @@ import android.graphics.Paint
 import android.graphics.Rect
 // 导入 Build 类，用于获取设备硬件信息（芯片型号、设备名称等）
 import android.os.Build
+// 导入 BuildConfig，用于区分 Debug/Release 构建，控制诊断日志输出
+import com.Enco.facerecognition.BuildConfig
 // 导入 Log 类，用于在 Logcat 中输出调试和错误日志
 import android.util.Log
 // 导入 Dispatchers，用于指定协程运行的线程调度器
@@ -29,6 +31,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+// Mutex：保护 detSession.run / recSession.run，OrtSession.run 非线程安全
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 // 导入 File 类，用于文件系统操作（模型缓存文件的读写）
 import java.io.File
 // 导入 FileOutputStream 类，用于将模型文件从 assets 复制到缓存目录
@@ -105,6 +110,11 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
     private data class OutputShapeInfo(val name: String, val lastDim: Int, val anchorCount: Int) // 输出张量形状信息
     // 缓存检测模型各输出层的形状信息列表
     private var detOutputShapes: List<OutputShapeInfo> = emptyList() // 检测模型输出形状缓存
+
+    // === ONNX 推理互斥锁 ===
+    // OrtSession.run 非线程安全（见 AGENTS.md），所有 run() 调用必须持锁。
+    // 用单一 Mutex 同时保护检测和识别会话，避免 VideoProcessor 多消费者并发崩溃。
+    private val inferenceMutex = Mutex() // ONNX 推理互斥锁
 
     // 缓冲区大小常量
     // 检测输入的像素缓冲区大小（640*640=409600 个像素）
@@ -205,15 +215,20 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
             setIntraOpNumThreads(optimalThreads)
             // 设置算子之间并行线程数
             setInterOpNumThreads(optimalThreads)
-            
-            // 🚀 启用NNAPI硬件加速（Android 8.1+）
-            // NNAPI会自动调用设备的GPU/NPU/DSP进行推理
-            try {
-                addConfigEntry("NNAPI_FLAG", "1")  // 启用NNAPI
-                addConfigEntry("NNAPI_CPU_DISABLE", "0")  // 允许CPU回退
-                Log.i(TAG, "✅ NNAPI硬件加速已启用")
-            } catch (e: Exception) {
-                Log.w(TAG, "⚠️ NNAPI不可用，使用CPU推理: ${e.message}")
+
+            // 🚀 启用 NNAPI 硬件加速（Android 8.1+）
+            // 注意：必须调用 addNnapi() 扩展函数才能正确启用 NNAPI，
+            //      旧代码用 addConfigEntry("NNAPI_FLAG","1") 是无效的（ONNX Runtime 不识别该键）。
+            //      NNAPI 会自动调用设备的 GPU/NPU/DSP 进行推理，骁龙 8 系列可达 2-5x 加速。
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                try {
+                    addNnapi()  // 官方扩展函数，正确启用 NNAPI
+                    Log.i(TAG, "✅ NNAPI 硬件加速已启用（检测模型）")
+                } catch (e: Exception) {
+                    Log.w(TAG, "⚠️ NNAPI 不可用，回退 CPU 推理: ${e.message}")
+                }
+            } else {
+                Log.i(TAG, "ℹ️ 系统 < 8.1，NNAPI 不可用，使用 CPU 推理")
             }
         } // 结束检测模型会话配置
 
@@ -227,15 +242,15 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
             setIntraOpNumThreads(optimalThreads)
             // 设置算子之间并行线程数
             setInterOpNumThreads(optimalThreads)
-            
-            // 🚀 启用NNAPI硬件加速（Android 8.1+）
-            // NNAPI会自动调用设备的GPU/NPU/DSP进行推理
-            try {
-                addConfigEntry("NNAPI_FLAG", "1")  // 启用NNAPI
-                addConfigEntry("NNAPI_CPU_DISABLE", "0")  // 允许CPU回退
-                Log.i(TAG, "✅ NNAPI硬件加速已启用（识别模型）")
-            } catch (e: Exception) {
-                Log.w(TAG, "⚠️ NNAPI不可用，使用CPU推理: ${e.message}")
+
+            // 🚀 启用 NNAPI 硬件加速（Android 8.1+）
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                try {
+                    addNnapi()  // 官方扩展函数
+                    Log.i(TAG, "✅ NNAPI 硬件加速已启用（识别模型）")
+                } catch (e: Exception) {
+                    Log.w(TAG, "⚠️ NNAPI 不可用，回退 CPU 推理: ${e.message}")
+                }
             }
         } // 结束识别模型会话配置
 
@@ -519,17 +534,24 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
             // 对输入图像进行预处理（缩放、归一化、转为张量）
             inputTensor = preprocessDetection(bitmap)
             // 运行检测模型推理，将输入张量传入模型
-            outputs = detSession?.run(mapOf(detInputName to inputTensor))
+            // ⚠️ OrtSession.run 非线程安全，必须持 inferenceMutex。
+            //   VideoProcessor 多消费者并发调用本方法时由 Mutex 串行化，避免 native 崩溃。
+            outputs = inferenceMutex.withLock {
+                detSession?.run(mapOf(detInputName to inputTensor))
+            }
 
             // 获取模型输出的张量数量
             val outputCount = outputs?.size() ?: 0
-            // 打印输出张量数量
-            Log.i(TAG, "模型输出张量数: $outputCount")
+            // 仅在 Debug 构建下打印详细输出张量信息，Release 不执行避免 JNI 开销
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "模型输出张量数: $outputCount")
+            }
 
-            // 如果模型有输出
-            if (outputCount > 0) {
-                // 遍历前 20 个输出张量（避免过多日志）
-                for (i in 0 until min(outputCount, 20)) {
+            // 仅在 Debug 构建下遍历输出张量做采样诊断
+            // Release 构建跳过：extractFlatFloatArray 递归展平对大张量(12800+)消耗可观 CPU
+            if (BuildConfig.DEBUG && outputCount > 0) {
+                // 遍历前 5 个输出张量（减少日志量，原为 20）
+                for (i in 0 until min(outputCount, 5)) {
                     // 尝试读取并打印每个输出的采样数据
                     try {
                         // 获取第 i 个输出张量的原始值
@@ -544,8 +566,8 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
                         val minVal = if (flatArr.isNotEmpty()) flatArr.minOrNull() else 0f
                         // 获取数组中的最大值
                         val maxVal = if (flatArr.isNotEmpty()) flatArr.maxOrNull() else 0f
-                        // 打印输出张量的详细信息（大小、范围、采样值）
-                        Log.i(TAG, "  输出[$i]: flatSize=${flatArr.size}, range=[${"%.4f".format(minVal)}, ${"%.4f".format(maxVal)}], sample=[$sample]")
+                        // 打印输出张量的详细信息（大小、范围、采样值），Debug 级别
+                        Log.v(TAG, "  输出[$i]: flatSize=${flatArr.size}, range=[${"%.4f".format(minVal)}, ${"%.4f".format(maxVal)}], sample=[$sample]")
                     // 捕获读取单个输出时的异常
                     } catch (e: Exception) {
                         // 打印读取输出失败的警告
@@ -572,8 +594,8 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
                 detections = parseDetectionOutputs(outputs, bitmap.width, bitmap.height, detectionThreshold)
             } // 结束回退策略
 
-            // 如果所有解析策略都返回 0 个结果
-            if (detections.isEmpty() && outputCount > 0) {
+            // 如果所有解析策略都返回 0 个结果，且为 Debug 构建，执行诊断扫描
+            if (detections.isEmpty() && outputCount > 0 && BuildConfig.DEBUG) {
                 // 打印执行诊断扫描的日志
                 Log.w(TAG, "所有解析策略返回0，执行诊断扫描...")
                 // 执行诊断扫描，打印所有输出中的 Top-10 最高分数
@@ -850,15 +872,16 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
 
     /**
      * 提取人脸特征 - 高性能版本
+     * 返回 null 表示模型未加载或推理失败，调用方可区分"失败"与"未匹配"。
      */
-    // 挂起函数：在后台线程中提取人脸特征向量（512 维嵌入）
-    suspend fun extractEmbedding(faceBitmap: Bitmap): FloatArray = withContext(Dispatchers.Default) {
+    // 挂起函数：在后台线程中提取人脸特征向量（512 维嵌入），失败返回 null
+    suspend fun extractEmbedding(faceBitmap: Bitmap): FloatArray? = withContext(Dispatchers.Default) {
         // 检查识别模型是否已加载
         if (recSession == null || env == null) {
             // 打印识别模型未加载的错误日志
             Log.e(TAG, "识别模型未加载")
-            // 返回零向量并退出协程
-            return@withContext FloatArray(EMBEDDING_DIM)
+            // 返回 null 表示模型不可用
+            return@withContext null
         } // 结束模型加载检查
 
         // 声明输入张量变量
@@ -874,7 +897,10 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
             // 对人脸图像进行预处理（缩放、归一化、转为张量）
             inputTensor = preprocessRecognition(faceBitmap)
             // 运行识别模型推理
-            outputs = recSession?.run(mapOf(recInputName to inputTensor))
+            // ⚠️ OrtSession.run 非线程安全，持 inferenceMutex 保护。
+            outputs = inferenceMutex.withLock {
+                recSession?.run(mapOf(recInputName to inputTensor))
+            }
 
             // 从模型输出中提取原始特征向量，处理不同的输出类型
             val rawEmbedding = when (val outputValue = outputs?.get(0)?.value) {
@@ -883,7 +909,7 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
                     ?: FloatArray(EMBEDDING_DIM)
                 // 如果输出直接是一维浮点数组，直接使用
                 is FloatArray -> outputValue
-                // 其他类型返回零向量
+                // 其他类型返回零向量（但仍非 null，表示推理成功但输出格式异常）
                 else -> FloatArray(EMBEDDING_DIM)
             } // 结束输出类型匹配
 
@@ -892,12 +918,15 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
 
             // 计算特征提取的耗时
             val elapsed = System.currentTimeMillis() - startTime
-            // 计算原始特征向量的 L2 范数（用于调试）
-            val norm = sqrt(rawEmbedding.fold(0f) { acc, v -> acc + v * v })
-            // 取归一化后向量的前 5 个值作为采样
-            val sample = normalizedEmbedding.take(5).joinToString(", ") { "%.4f".format(it) }
-            // 打印特征提取完成的调试日志
-            Log.d(TAG, "特征提取完成, 耗时 ${elapsed}ms, dim=${rawEmbedding.size}, norm=${"%.4f".format(norm)}, sample=[$sample]")
+            // 仅 Debug 构建打印特征提取调试信息
+            if (BuildConfig.DEBUG) {
+                // 计算原始特征向量的 L2 范数（用于调试）
+                val norm = sqrt(rawEmbedding.fold(0f) { acc, v -> acc + v * v })
+                // 取归一化后向量的前 5 个值作为采样
+                val sample = normalizedEmbedding.take(5).joinToString(", ") { "%.4f".format(it) }
+                // 打印特征提取完成的调试日志
+                Log.d(TAG, "特征提取完成, 耗时 ${elapsed}ms, dim=${rawEmbedding.size}, norm=${"%.4f".format(norm)}, sample=[$sample]")
+            }
 
             // 返回归一化后的特征向量
             normalizedEmbedding
@@ -906,8 +935,8 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
         } catch (e: Exception) {
             // 打印特征提取失败的错误日志
             Log.e(TAG, "特征提取失败: ${e.message}", e)
-            // 返回零向量表示提取失败
-            FloatArray(EMBEDDING_DIM)
+            // 返回 null 表示推理失败，调用方可显式区分错误
+            null
         // 无论成功与否都释放资源
         } finally {
             // 安全关闭输入张量
@@ -927,7 +956,8 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
         threshold: Float = 0.3f // 识别阈值，默认 0.3
     ): RecognitionResult = withContext(Dispatchers.Default) {
 
-        // 检查模板库是否为空
+        // 模板库应由调用方（ViewModel.initialize / setTemplate）在加载时一次性过滤维度，
+        // 此处直接信任传入参数，避免每次识别重复 O(N) 过滤 + Map 分配。
         if (templates.isEmpty()) {
             // 打印模板库为空的警告日志
             Log.w(TAG, "识别: 模板库为空")
@@ -935,16 +965,15 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
             return@withContext RecognitionResult("UNKNOWN", 0f)
         } // 结束空模板检查
 
-        // 过滤出维度正确的模板（512 维）
-        val validTemplates = templates.filter { it.value.size == EMBEDDING_DIM }
-        // 检查是否有模板因维度不匹配被跳过
-        if (validTemplates.size < templates.size) {
-            // 打印被跳过的模板数量警告
-            Log.w(TAG, "识别: ${templates.size - validTemplates.size} 个模板维度不匹配被跳过 (需要${EMBEDDING_DIM}维)")
-        } // 结束维度检查
-
+        // 防御性：仅对维度明显错误的模板跳过（保留容错），不做全量 filter 分配新 Map
+        val validTemplates = templates // 直接使用传入的模板库
         // 提取待识别人脸的特征向量
         val embedding = extractEmbedding(faceBitmap)
+        // 推理失败时返回 ERROR 结果，UI 可显式提示（区别于"未匹配到模板"的 UNKNOWN）
+        if (embedding == null) {
+            Log.e(TAG, "识别: 特征提取失败，返回 ERROR 结果")
+            return@withContext RecognitionResult("ERROR", -1f)
+        } // 结束失败检查
 
         // 初始化最佳匹配名称为未知
         var bestName = "UNKNOWN"
@@ -1065,8 +1094,10 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
     private fun preprocessDetection(bitmap: Bitmap): OnnxTensor {
         // 确保 Bitmap 为软件渲染格式以便读取像素
         val safeBitmap = ensureSoftware(bitmap)
-        // 打印原始图片信息和转换后的格式
-        Log.d(TAG, "原始图片: ${bitmap.width}x${bitmap.height} config=${bitmap.config} → safe=${safeBitmap.config}")
+        // 仅 Debug 构建打印预处理信息
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "原始图片: ${bitmap.width}x${bitmap.height} config=${bitmap.config} → safe=${safeBitmap.config}")
+        }
         // 将图像缩放到检测模型输入尺寸（640x640）
         val scaledBitmap = Bitmap.createScaledBitmap(safeBitmap, DET_INPUT_SIZE, DET_INPUT_SIZE, true)
         // 如果安全 Bitmap 不是原始 Bitmap，释放中间 Bitmap 的内存
@@ -1096,12 +1127,15 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
                 floatBuffer[i + 2 * size] = (((pixel shr 16) and 0xFF) - 127.5f) / 128.0f
             } // 结束像素归一化循环
 
-            // 取前 5 个像素值格式化为十六进制字符串用于调试
-            val sample = pixelBuffer.take(5).joinToString(", ") { "0x%08X".format(it) }
-            // 打印前 5 个原始像素的十六进制值
-            Log.d(TAG, "前5像素: $sample")
-            // 打印归一化后浮点数据的范围（最小值和最大值）
-            Log.d(TAG, "float范围: [${"%.4f".format(floatBuffer.minOrNull())}, ${"%.4f".format(floatBuffer.maxOrNull())}]")
+            // 仅 Debug 构建打印像素采样和范围，避免 Release 刷屏和 CPU 开销
+            if (BuildConfig.DEBUG) {
+                // 取前 5 个像素值格式化为十六进制字符串用于调试
+                val sample = pixelBuffer.take(5).joinToString(", ") { "0x%08X".format(it) }
+                // 打印前 5 个原始像素的十六进制值
+                Log.v(TAG, "前5像素: $sample")
+                // 打印归一化后浮点数据的范围（最小值和最大值）
+                Log.v(TAG, "float范围: [${"%.4f".format(floatBuffer.minOrNull())}, ${"%.4f".format(floatBuffer.maxOrNull())}]")
+            }
 
             // 定义张量的形状：[batch=1, channels=3, height=640, width=640]（NCHW 格式）
             val shape = longArrayOf(1, 3, DET_INPUT_SIZE.toLong(), DET_INPUT_SIZE.toLong())
@@ -1863,29 +1897,23 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
     } // 结束 l2Normalize 方法
 
     /**
-     * 余弦相似度 - 同时处理归一化和未归一化向量
+     * 余弦相似度 - 两侧向量均已 L2 归一化
+     * 归一化后范数=1，余弦相似度 = 点积，省去两次 sqrt 和除法。
+     * 若向量意外未归一化（norm≈0），点积仍返回 0，行为安全。
      */
-    // 私有方法：计算两个向量之间的余弦相似度
+    // 私有方法：计算两个已归一化向量之间的余弦相似度（= 点积）
     private fun cosineSimilarity(a: FloatArray, b: FloatArray): Float {
+        // 校验维度一致，不一致直接返回 0（防御）
+        if (a.size != b.size) return 0f
         // 初始化点积为 0
         var dotProduct = 0f
-        // 初始化向量 a 的平方范数为 0
-        var normA = 0f
-        // 初始化向量 b 的平方范数为 0
-        var normB = 0f
-        // 遍历向量的每个维度
+        // 遍历向量的每个维度累加点积
         for (i in a.indices) {
-            // 累加对应维度的乘积（点积）
+            // 累加对应维度的乘积
             dotProduct += a[i] * b[i]
-            // 累加向量 a 对应维度的平方
-            normA += a[i] * a[i]
-            // 累加向量 b 对应维度的平方
-            normB += b[i] * b[i]
         } // 结束遍历
-        // 计算分母：两个向量的 L2 范数之积
-        val denom = sqrt(normA) * sqrt(normB)
-        // 返回余弦相似度（点积 / 范数之积），分母为 0 时返回 0
-        return if (denom > 0f) dotProduct / denom else 0f
+        // 两侧已归一化，余弦相似度 = 点积；钳位到 [-1, 1] 防止浮点误差
+        return dotProduct.coerceIn(-1f, 1f)
     } // 结束 cosineSimilarity 方法
 
     /**
@@ -2001,8 +2029,11 @@ class OnnxFaceRecognition(context: Context) { // 声明类构造函数，传入�
 
     /**
      * 释放资源
+     * @Synchronized 防止 close() 与 detectFaces/extractEmbedding 并发执行导致 NPE
+     * （如 ViewModel.onCleared 与正在进行的识别并发）。
      */
-    // 公开方法：释放所有 ONNX Runtime 资源（会话和环境）
+    // 公开方法：释放所有 ONNX Runtime 资源（会话和环境），加同步保护
+    @Synchronized
     fun close() {
         // 打印开始释放资源的日志
         Log.i(TAG, "释放 ONNX Runtime 资源...")

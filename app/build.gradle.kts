@@ -24,7 +24,10 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // ✅ P2-4 修复：启用 R8 代码混淆与压缩，减小代码体积 30-50%（模型本身不压缩）
+            //   配合完善的 proguard-rules.pro keep 规则，确保 ONNX/Kotlin/Compose 运行时不崩溃
+            isMinifyEnabled = true
+            isShrinkResources = false // 保守起见不压缩资源，避免误删必要资源
             isZipAlignEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -76,7 +79,8 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.8.2")
     
     // Compose BOM
-    val composeBom = platform("androidx.compose:compose-bom:2024.02.00")
+    // ✅ P2-4 修复：升级 Compose BOM 至 2024.06.00，获取 bug 修复和性能改进
+    val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
     implementation(composeBom)
     androidTestImplementation(composeBom)
     

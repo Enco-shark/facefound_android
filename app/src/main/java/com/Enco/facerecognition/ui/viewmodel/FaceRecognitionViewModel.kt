@@ -142,6 +142,10 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
         private const val KEY_VIDEO_DETECTION_THRESHOLD = "video_detection_threshold" // 视频检测阈值的存储键
         private const val KEY_VIDEO_SAMPLE_RATE = "video_sample_rate" // 视频抽帧频率的存储键
         private const val KEY_HISTORY = "recognition_history" // 识别历史记录的存储键
+        // ✅ P1-3 修复：videoProcessedFrames 改为环形缓冲，只保留最近 N 帧用于 UI 预览
+        //   原代码每 5 帧 toList() 复制全部帧，长视频时内存 O(n) 增长 + Compose 重组成本爆炸
+        //   VideoScreen.kt 第 258 行已用 takeLast(20) 显示，保留 20 帧足够
+        private const val MAX_RECENT_FRAMES = 20 // 环形缓冲容量：最近 20 帧用于预览
     } // 结束companion object
 
     private val prefs: SharedPreferences by lazy { // 懒加载SharedPreferences实例，用于持久化存储用户设置
@@ -546,7 +550,17 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
     ) { // 开始函数体
         viewModelScope.launch { // 在ViewModel作用域内启动协程
             try { // 尝试执行以下操作
-                val embedding = faceRecognizer?.extractEmbedding(faceBitmap) ?: return@launch // 从人脸位图中提取特征向量，失败则退出协程
+                // 从人脸位图中提取特征向量
+                val recognizer = faceRecognizer
+                if (recognizer == null) { // 识别器未初始化
+                    addLog("❌ 识别器未初始化") // 记录错误日志
+                    return@launch // 退出协程
+                } // 结束识别器空检查
+                val embedding = recognizer.extractEmbedding(faceBitmap) // 提取特征向量，可能返回 null（推理失败）
+                if (embedding == null) { // 特征提取失败（模型未加载或推理异常）
+                    addLog("❌ 特征提取失败，模型可能未正确加载") // 显式提示失败原因
+                    return@launch // 退出协程
+                } // 结束失败检查
                 templates = templates.toMutableMap().apply { put(name, embedding) } // 将新的名称和特征向量添加到模板映射中
                 _uiState.update { state -> // 更新UI状态
                     state.copy( // 复制当前状态
@@ -826,8 +840,8 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
             addLog("🎬 开始视频人脸识别...") // 记录开始视频人脸识别的日志
 
             try { // 尝试执行视频处理流程
-                val processedFrames = mutableListOf<VideoProcessor.ProcessedFrame>() // 创建可变列表存储处理后的帧数据
-                val frameResults = mutableListOf<VideoFrameResult>() // 创建可变列表存储帧识别结果
+                val processedFrames = mutableListOf<VideoProcessor.VideoFrameResult>() // 创建可变列表存储处理后的帧数据（用于编码，需完整保留）
+                val frameResults = ArrayDeque<VideoFrameResult>(MAX_RECENT_FRAMES) // ✅ 环形缓冲：只保留最近 N 帧用于 UI 预览
                 var lastUiUpdateCount = 0 // 记录上次UI更新时的帧数，用于节流
                 val uiUpdateInterval = 5 // UI更新间隔，每处理5帧更新一次UI
 
@@ -850,8 +864,12 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
                 ).collect { processedFrame -> // 收集Flow中的每个处理后的帧
                     if (!coroutineContext.isActive) return@collect // 如果协程已取消，直接返回停止收集
 
-                    processedFrames.add(processedFrame) // 将处理后的帧添加到帧列表
-                    frameResults.add( // 将帧结果添加到结果列表
+                    processedFrames.add(processedFrame) // 将处理后的帧添加到帧列表（编码用，需完整）
+                    // ✅ 环形缓冲：超出容量时移除最旧的帧，保持固定内存占用
+                    if (frameResults.size >= MAX_RECENT_FRAMES) {
+                        frameResults.removeFirst() // 移除最旧帧
+                    } // 结束容量检查
+                    frameResults.add( // 将帧结果添加到环形缓冲
                         VideoFrameResult( // 创建视频帧结果
                             frameIndex = processedFrame.frameIndex, // 设置帧索引
                             detections = processedFrame.detections, // 设置该帧的检测结果
@@ -865,7 +883,7 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
                         _uiState.update { // 更新UI状态
                             it.copy( // 复制当前状态并修改以下字段
                                 videoProcessedCount = count, // 更新已处理帧数
-                                videoProcessedFrames = frameResults.toList(), // 更新已处理帧结果列表
+                                videoProcessedFrames = frameResults.toList(), // ✅ 只保留最近 MAX_RECENT_FRAMES 帧，避免列表无限增长
                                 videoProgress = processedFrame.presentationTimeUs.toFloat() / // 计算进度：当前帧时间戳
                                     ((currentState.videoInfo?.durationMs ?: 1L) * 1000).coerceAtLeast(1) // 除以视频总时长（微秒），最小为1防止除零
                             ) // 结束copy
@@ -878,7 +896,7 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
                 _uiState.update { // 更新UI状态
                     it.copy( // 复制当前状态并修改以下字段
                         videoProcessedCount = processedFrames.size, // 更新已处理帧数为最终总数
-                        videoProcessedFrames = frameResults.toList(), // 更新已处理帧结果为最终完整列表
+                        videoProcessedFrames = frameResults.toList(), // ✅ 保留最近 N 帧（已是最新窗口）
                         videoProgress = 1f // 设置进度为100%
                     ) // 结束copy
                 } // 结束_uiState.update
@@ -923,7 +941,7 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
                         videoProcessingState = VideoProcessingState.Completed, // 设置视频处理状态为完成
                         videoProgress = 1f, // 设置进度为100%
                         videoProcessedCount = processedFrames.size, // 更新已处理帧数为最终总数
-                        videoProcessedFrames = frameResults.toList(), // 更新已处理帧结果为最终完整列表
+                        videoProcessedFrames = frameResults.toList(), // ✅ 保留最近 N 帧用于预览
                         outputVideoUri = savedUri // 设置输出视频的URI
                     ) // 结束copy
                 } // 结束_uiState.update
@@ -1029,14 +1047,6 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
             it.copy(logs = newLogs) // 用新的日志列表更新状态
         } // 结束_uiState.update
     } // 结束addLog函数
-
-    private fun recycleResultBitmap() { // 回收结果位图的私有函数，安全地释放位图内存
-        val bitmap = _uiState.value.resultBitmap // 获取当前状态中的结果位图引用
-        // 先将状态中的引用置空，避免 UI 访问已回收的 bitmap // 注释说明先置空引用的原因
-        _uiState.update { it.copy(resultBitmap = null) } // 将状态中的结果位图引用设为null
-        // 然后回收 bitmap // 注释说明随后回收位图
-        bitmap?.recycle() // 回收位图，释放其占用的内存
-    } // 结束recycleResultBitmap函数
 
     override fun onCleared() { // 重写ViewModel清除回调，在ViewModel被销毁时调用
         super.onCleared() // 调用父类的onCleared方法

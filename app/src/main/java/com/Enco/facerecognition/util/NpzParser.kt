@@ -447,7 +447,12 @@ object NpzParser { // NPZ解析器单例对象
             var start = -1 // 当前字符串起始位置
             for (i in data.indices) { // 遍历每个字节
                 val b = data[i].toInt() and 0xFF // 读取字节值
-                if (b in 32..126 || b >= 192) { // ASCII可打印字符或UTF-8多字节起始
+                // ✅ P2-5 修复：UTF-8 起始字节判断
+                //   原 b >= 192 会匹配 0xC0-0xFF，但 0xC0-0xC1 是无效 UTF-8 起始，0xF8-0xFF 是非法字节。
+                //   正确范围：ASCII 可打印 0x20-0x7E，UTF-8 多字节起始 0xC2-0xF4（2/3/4 字节序列）。
+                //   0x80-0xBF 是 UTF-8 续接字节，不应单独作为字符串起始。
+                val isUtf8Start = b in 0xC2..0xF4 // 合法 UTF-8 多字节起始字节
+                if (b in 32..126 || isUtf8Start) { // ASCII可打印字符或合法UTF-8多字节起始
                     if (start < 0) start = i // 记录起始位置
                 } else { // 不可打印字符
                     if (start >= 0) { // 有正在收集的字符串

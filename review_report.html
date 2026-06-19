@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FaceRecognition 代码审查报告</title>
+<style>
+  :root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f7f6f3;
+    --bg-tertiary: #f1efe8;
+    --bg-danger: #fcebeb;
+    --bg-warning: #faeeda;
+    --bg-info: #e6f1fb;
+    --bg-success: #eaf3de;
+    --text-primary: #2c2c2a;
+    --text-secondary: #5f5e5a;
+    --text-tertiary: #888780;
+    --text-danger: #791f1f;
+    --text-warning: #633806;
+    --text-info: #0c447c;
+    --border: #d3d1c7;
+    --border-light: #e4e2da;
+    --border-danger: #e24b4a;
+    --border-warning: #ba7517;
+    --border-info: #378add;
+    --radius: 8px;
+    --radius-lg: 12px;
+    --mono: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 980px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-size: 26px; font-weight: 600; margin: 0 0 8px; letter-spacing: -0.01em; }
+  h2 { font-size: 19px; font-weight: 600; margin: 40px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 15px; font-weight: 600; margin: 24px 0 8px; }
+  .meta { color: var(--text-secondary); font-size: 13px; margin-bottom: 32px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 24px 0 8px; }
+  .stat-card { background: var(--bg-primary); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .stat-num { font-size: 28px; font-weight: 600; line-height: 1.1; }
+  .stat-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+  .stat-card.p0 .stat-num { color: #a32d2d; }
+  .stat-card.p1 .stat-num { color: #854f0b; }
+  .stat-card.p2 .stat-num { color: #5f5e5a; }
+
+  .issue { background: var(--bg-primary); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 20px 24px; margin: 16px 0; }
+  .issue-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .badge { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; letter-spacing: 0.04em; }
+  .badge.p0 { background: var(--bg-danger); color: var(--text-danger); border: 0.5px solid var(--border-danger); }
+  .badge.p1 { background: var(--bg-warning); color: var(--text-warning); border: 0.5px solid var(--border-warning); }
+  .badge.p2 { background: var(--bg-tertiary); color: var(--text-secondary); border: 0.5px solid var(--border); }
+  .issue-title { font-size: 16px; font-weight: 600; margin: 0; }
+  .issue-meta { font-size: 12px; color: var(--text-tertiary); font-family: var(--mono); margin-bottom: 12px; word-break: break-all; }
+  .issue-body p { margin: 8px 0; }
+  .issue-body strong { color: var(--text-primary); font-weight: 600; }
+  .issue-impact { background: var(--bg-danger); border-left: 3px solid var(--border-danger); padding: 10px 14px; margin: 12px 0; border-radius: 0 var(--radius) var(--radius) 0; font-size: 13px; }
+  .issue-impact.p1 { background: var(--bg-warning); border-left-color: var(--border-warning); }
+  .issue-impact.p2 { background: var(--bg-tertiary); border-left-color: var(--border); }
+  .issue-impact-label { font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; display: block; margin-bottom: 4px; }
+
+  pre { background: #1e1e1e; color: #e4e4e4; padding: 14px 16px; border-radius: var(--radius); overflow-x: auto; font-size: 12.5px; line-height: 1.55; font-family: var(--mono); margin: 12px 0; }
+  pre .kw { color: #569cd6; }
+  pre .str { color: #ce9178; }
+  pre .cmt { color: #6a9955; font-style: italic; }
+  pre .fn { color: #dcdcaa; }
+  pre .num { color: #b5cea8; }
+  pre .bad { background: rgba(244,67,54,0.18); display: block; margin: 0 -16px; padding: 0 16px; }
+  pre .good { background: rgba(76,175,80,0.16); display: block; margin: 0 -16px; padding: 0 16px; }
+
+  .fix-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); margin: 16px 0 6px; }
+  .toc { background: var(--bg-primary); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 16px 24px; margin: 24px 0; }
+  .toc-title { font-weight: 600; margin-bottom: 10px; font-size: 13px; }
+  .toc-list { list-style: none; padding: 0; margin: 0; columns: 2; column-gap: 32px; font-size: 13px; }
+  .toc-list li { padding: 3px 0; break-inside: avoid; }
+  .toc-list a { color: var(--text-primary); text-decoration: none; }
+  .toc-list a:hover { color: #185fa5; }
+  .toc-list .pl { color: var(--text-tertiary); font-family: var(--mono); font-size: 11px; margin-right: 6px; }
+
+  .highlight-box { background: var(--bg-info); border: 0.5px solid var(--border-info); border-radius: var(--radius); padding: 14px 16px; margin: 16px 0; font-size: 13px; }
+  .highlight-box strong { color: var(--text-info); }
+  hr { border: 0; border-top: 0.5px solid var(--border); margin: 32px 0; }
+  .footer { margin-top: 60px; padding-top: 20px; border-top: 0.5px solid var(--border); color: var(--text-tertiary); font-size: 12px; }
+  code { font-family: var(--mono); font-size: 12.5px; background: var(--bg-tertiary); padding: 1px 5px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>FaceRecognition 代码审查报告</h1>
+<div class="meta">
+  项目：FaceRecognition · 离线人脸识别 Android 应用 &nbsp;|&nbsp; 审查日期：2026-06-19 &nbsp;|&nbsp; 审查范围：核心源码 14 个文件 &nbsp;|&nbsp; 审查者：Buddy
+</div>
+
+<p>本次审查覆盖推理引擎、视频处理流水线、ViewModel 状态管理、UI 层、工具类与构建配置。共发现 <strong>14 个问题</strong>，其中 2 个 P0 严重问题需优先修复，6 个 P1 重要问题影响性能或正确性，6 个 P2 改进建议。核心引擎 OnnxFaceRecognition.kt 实现完整、注释规范；VideoProcessor.kt 的并行流水线设计有创意，但存在竞态死锁和线程安全隐患。</p>
+
+<div class="summary-grid">
+  <div class="stat-card p0"><div class="stat-num">2</div><div class="stat-label">P0 严重 · 影响功能/稳定性</div></div>
+  <div class="stat-card p1"><div class="stat-num">6</div><div class="stat-label">P1 重要 · 性能/正确性</div></div>
+  <div class="stat-card p2"><div class="stat-num">6</div><div class="stat-label">P2 改进 · 可维护性</div></div>
+  <div class="stat-card"><div class="stat-num">14</div><div class="stat-label">问题总数</div></div>
+</div>
+
+<div class="toc">
+  <div class="toc-title">问题清单</div>
+  <ul class="toc-list">
+    <li><a href="#p0-1"><span class="pl">P0-1</span>视频保序队列竞态死锁</a></li>
+    <li><a href="#p0-2"><span class="pl">P0-2</span>Semaphore 下限保护缺失</a></li>
+    <li><a href="#p1-1"><span class="pl">P1-1</span>NNAPI 硬件加速伪启用</a></li>
+    <li><a href="#p1-2"><span class="pl">P1-2</span>Session 并发线程不安全</a></li>
+    <li><a href="#p1-3"><span class="pl">P1-3</span>ViewModel 帧列表内存爆炸</a></li>
+    <li><a href="#p1-4"><span class="pl">P1-4</span>生产环境过度诊断日志</a></li>
+    <li><a href="#p1-5"><span class="pl">P1-5</span>编码器中途不 drain 输出</a></li>
+    <li><a href="#p1-6"><span class="pl">P1-6</span>PTS 时间戳计算错误</a></li>
+    <li><a href="#p2-1"><span class="pl">P2-1</span>模板每次识别重复过滤</a></li>
+    <li><a href="#p2-2"><span class="pl">P2-2</span>余弦相似度重复算范数</a></li>
+    <li><a href="#p2-3"><span class="pl">P2-3</span>extractEmbedding 失败静默</a></li>
+    <li><a href="#p2-4"><span class="pl">P2-4</span>构建配置与依赖优化</a></li>
+    <li><a href="#p2-5"><span class="pl">P2-5</span>NpzParser 解析策略过度复杂</a></li>
+    <li><a href="#p2-6"><span class="pl">P2-6</span>Manifest 权限与资源管理</a></li>
+  </ul>
+</div>
+
+<h2 id="p0">P0 严重问题</h2>
+
+<div class="issue" id="p0-1">
+  <div class="issue-head">
+    <span class="badge p0">P0</span>
+    <h3 class="issue-title">视频保序输出队列竞态条件导致死锁</h3>
+  </div>
+  <div class="issue-meta">video/VideoProcessor.kt · processVideoFrames() · 第 166-300 行</div>
+  <div class="issue-body">
+    <p><strong>问题</strong>：生产者-消费者-输出三协程架构使用 <code>PriorityBlockingQueue</code> 保序输出，但存在两个致命缺陷：</p>
+    <p>1. <strong>totalFrames 竞态</strong>：<code>totalFrames</code> 在生产者协程结束时才赋值（第 199 行），但 outputJob 的循环条件 <code>while (processedCount &lt; totalFrames || !resultQueue.isEmpty())</code>（第 270 行）在 outputJob 启动时 totalFrames 可能仍为 0，导致循环逻辑依赖时序。</p>
+    <p>2. <strong>expectedFrameIndex 永久阻塞</strong>：若某帧在 <code>semaphore.withPermit</code> 块内抛异常（如 ONNX 推理失败），该帧序号不会进入 resultQueue，outputJob 的 <code>expectedFrameIndex</code> 永远等不到匹配，<code>delay(1)</code> 忙等待无限循环，协程泄漏，视频处理挂起。</p>
+  </div>
+  <div class="issue-impact">
+    <span class="issue-impact-label">影响</span>
+    任何单帧推理异常都会导致整个视频处理流程永久挂起，UI 卡在"处理中"状态，需强制关闭应用。消费者异常路径未提供结果补偿。
+  </div>
+  <div class="fix-label">修复建议</div>
+  <pre><span class="cmt">// 消费者异常路径必须补偿结果，保证序号连续</span>
+semaphore.withPermit {
+    <span class="kw">try</span> {
+        <span class="kw">val</span> detections = faceRecognizer.detectFaces(frameBitmap, detectionThreshold)
+        <span class="kw">val</span> results = faceRecognizer.recognizeFacesParallel(frameBitmap, detections, templates, threshold)
+        <span class="cmt">// ... 正常路径 offer 结果</span>
+    } <span class="kw">catch</span> (e: Exception) {
+        <span class="cmt">// 异常时必须 offer 一个空结果，保证 expectedFrameIndex 能推进</span>
+        synchronized(resultQueue) {
+            resultQueue.offer(VideoFrameResult(
+                frameIndex = frameIndex,
+                presentationTimeUs = timeUs,
+                bitmap = frameBitmap,  <span class="cmt">// 返回原图或 null</span>
+                detections = emptyList(),
+                names = emptyList()
+            ))
+        }
+        Log.e(TAG, <span class="str">"帧 $frameIndex 处理失败，已补偿空结果"</span>, e)
+    }
+}</pre>
+  <p>同时建议用 <code>CompletableDeferred</code> 或原子计数器替代 totalFlags 的延迟赋值，或在循环条件增加超时退出。</p>
+</div>
+
+<div class="issue" id="p0-2">
+  <div class="issue-head">
+    <span class="badge p0">P0</span>
+    <h3 class="issue-title">Semaphore 并发下限保护缺失</h3>
+  </div>
+  <div class="issue-meta">video/VideoProcessor.kt · processVideoFrames() · 第 164 行</div>
+  <div class="issue-body">
+    <p><strong>问题</strong>：</p>
+    <pre><span class="kw">val</span> semaphore = Semaphore(maxConcurrentFrames.coerceAtMost(cpuCores - <span class="num">1</span>))</pre>
+    <p>当设备 <code>cpuCores = 1</code>（低端设备或受限模式）时，<code>cpuCores - 1 = 0</code>，<code>Semaphore(0)</code> 会导致 <code>withPermit</code> 永久挂起，所有消费者协程死锁，视频处理完全无法进行。即使 cpuCores = 2，<code>Semaphore(1)</code> 也会让并行退化为串行，但至少能跑。</p>
+  </div>
+  <div class="issue-impact">
+    <span class="issue-impact-label">影响</span>
+    在单核或低核心数设备上视频处理功能完全不可用，协程永久挂起。项目宣称 minSdk 24 支持低端设备，但此 bug 让低端设备视频功能失效。
+  </div>
+  <div class="fix-label">修复建议</div>
+  <pre><span class="cmt">// 确保至少 1 个许可，避免 Semaphore(0) 死锁</span>
+<span class="kw">val</span> effectiveConcurrency = maxConcurrentFrames.coerceIn(<span class="num">1</span>, maxOf(<span class="num">1</span>, cpuCores - <span class="num">1</span>))
+<span class="kw">val</span> semaphore = Semaphore(effectiveConcurrency)</pre>
+</div>
+
+<h2 id="p1">P1 重要问题</h2>
+
+<div class="issue" id="p1-1">
+  <div class="issue-head">
+    <span class="badge p1">P1</span>
+    <h3 class="issue-title">NNAPI 硬件加速伪启用（实际全程 CPU 推理）</h3>
+  </div>
+  <div class="issue-meta">ml/OnnxFaceRecognition.kt · initModels() · 第 211-217 行、第 233-239 行</div>
+  <div class="issue-body">
+    <p><strong>问题</strong>：代码用 <code>addConfigEntry("NNAPI_FLAG", "1")</code> 试图启用 NNAPI，但这是<strong>错误的 API 用法</strong>。</p>
+    <pre><span class="bad">addConfigEntry(<span class="str">"NNAPI_FLAG"</span>, <span class="str">"1"</span>)  <span class="cmt">// ❌ ONNX Runtime 不识别此键，无任何效果</span>
+addConfigEntry(<span class="str">"NNAPI_CPU_DISABLE"</span>, <span class="str">"0"</span>)
+Log.i(TAG, <span class="str">"✅ NNAPI硬件加速已启用"</span>)  <span class="cmt">// ❌ 误导性日志，实际未启用</span></pre>
+    <p>ONNX Runtime Android 启用 NNAPI 的正确方式是 <code>OrtSession.SessionOptions.addNnapi()</code> 扩展函数。<code>addConfigEntry</code> 只设置任意键值对，ONNX Runtime 不会识别 <code>NNAPI_FLAG</code> 这个自定义键。</p>
+    <p>注释和日志声称"🚀 启用NNAPI硬件加速"，README 宣传"高性能"，但实际全程 CPU 推理。骁龙 8 系列的 NPU/DSP 完全未被利用。</p>
+  </div>
+  <div class="issue-impact p1">
+    <span class="issue-impact-label">影响</span>
+    性能损失显著。NNAPI 在支持的设备上可带来 2-5x 推理加速（NPU/DSP 卸载）。当前 README 性能数据（骁龙 8 Gen3 单帧 50ms）基于纯 CPU，启用真 NNAPI 有望降至 20-30ms。
+  </div>
+  <div class="fix-label">修复建议</div>
+  <pre><span class="kw">val</span> sessionOptions = OrtSession.SessionOptions().apply {
+    setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+    setIntraOpNumThreads(optimalThreads)
+
+    <span class="cmt">// ✅ 正确启用 NNAPI（API 8.1+）</span>
+    <span class="kw">if</span> (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+        <span class="kw">try</span> {
+            addNnapi()  <span class="cmt">// 官方扩展函数</span>
+            Log.i(TAG, <span class="str">"✅ NNAPI 硬件加速已启用"</span>)
+        } <span class="kw">catch</span> (e: Exception) {
+            Log.w(TAG, <span class="str">"NNAPI 不可用，回退 CPU: ${e.message}"</span>)
+        }
+    }
+}</pre>
+  <div class="highlight-box">
+    <strong>注意</strong>：NNAPI 对某些算子可能不兼容，启用后需回归测试检测/识别准确率。可考虑只对识别模型（w600k_r50，计算量大）启用 NNAPI，检测模型保持 CPU。
+  </div>
+</div>
+
+<div class="issue" id="p1-2">
+  <div class="issue-head">
+    <span class="badge p1">P1</span>
+    <h3 class="issue-title">VideoProcessor 消费者并发调用 detectFaces 违反线程安全约束</h3>
+  </div>
+  <div class="issue-meta">video/VideoProcessor.kt · processVideoFrames() 消费者协程 · 第 233-236 行</div>
+  <div class="issue-body">
+    <p><strong>问题</strong>：AGENTS.md 明确声明 <code>Session.run is NOT thread-safe</code>。但 VideoProcessor 的多个消费者协程在 semaphore 内并发调用 <code>faceRecognizer.detectFaces()</code>：</p>
+    <pre><span class="cmt">// 消费者协程（最多 maxConcurrentFrames 个并发）</span>
+semaphore.withPermit {
+    <span class="kw">val</span> detections = faceRecognizer.detectFaces(frameBitmap, detectionThreshold)  <span class="cmt">// ❌ 多协程并发调用 detSession.run()</span>
+    <span class="kw">val</span> results = faceRecognizer.recognizeFacesParallel(frameBitmap, detections, templates, threshold)
+}</pre>
+    <p>外层 semaphore permits = maxConcurrentFrames（2-4），意味着 2-4 个消费者会并发调用 <code>detSession?.run(...)</code>。而 <code>recognizeFacesParallel</code> 内部又有自己的 <code>Semaphore(maxConcurrency=2)</code>，两层 semaphore 嵌套，识别部分受保护，但<strong>检测部分（detectFaces）没有额外锁保护</strong>。</p>
+    <p>实际 ONNX Runtime Java API 的 <code>OrtSession.run()</code> 内部有同步保护，并发调用会串行化但不会崩溃——然而 AGENTS.md 的声明说明项目维护者认为它不安全。无论如何，当前并发调用不会带来检测加速（被内部锁串行化），反而增加线程切换开销。</p>
+  </div>
+  <div class="issue-impact p1">
+    <span class="issue-impact-label">影响</span>
+    1. 若 ONNX Runtime 版本升级移除内部锁，可能导致推理结果错乱或 native 崩溃。<br>
+    2. 当前并发调用被串行化，消费者并行度对检测阶段无效，实际加速仅来自对齐和模板匹配的并行。<br>
+    3. 两层 Semaphore 嵌套增加死锁风险和调试难度。
+  </div>
+  <div class="fix-label">修复建议</div>
+  <p>方案 A：检测和识别共享同一个 Semaphore，统一限制 ONNX 推理并发：</p>
+  <pre><span class="cmt">// 用单一 Semaphore 保护所有 ONNX 推理（detect + extract）</span>
+<span class="kw">val</span> inferenceSemaphore = Semaphore(maxInferenceConcurrency)
+<span class="cmt">// detectFaces 和 recognizeFacesParallel 内部都用此 semaphore</span></pre>
+  <p>方案 B：在 OnnxFaceRecognition 内部用 <code>@Synchronized</code> 或 <code>Mutex</code> 保护 <code>detSession.run()</code> 和 <code>recSession.run()</code>，让并发安全成为引擎内部契约。</p>
+</div>
+
+<div class="issue" id="p1-3">
+  <div class="issue-head">
+    <span class="badge p1">P1</span>
+    <h3 class="issue-title">ViewModel videoProcessedFrames 帧列表内存与 Compose 重组爆炸</h3>
+  </div>
+  <div class="issue-meta">ui/viewmodel/FaceRecognitionViewModel.kt · UiState.videoProcessedFrames · 第 73 行、第 868 行</div>
+  <div class="issue-body">
+    <p><strong>问题</strong>：<code>videoProcessedFrames: List&lt;VideoFrameResult&gt;</code> 作为 UiState 一部分，每个 VideoFrameResult 包含 <code>List&lt;FaceDetection&gt;</code>（含 Rect + landmarks）。</p>
+    <pre><span class="cmt">// 每 5 帧更新一次，每次 toList() 复制整个列表</span>
+_uiState.update {
+    it.copy(
+        videoProcessedFrames = frameResults.toList(),  <span class="cmt">// ❌ 列表随帧数线性增长</span>
+        videoProgress = ...
+    )
+}</pre>
+    <p>视频 300 帧、每帧 5 张脸时，StateFlow 持有 300 个 VideoFrameResult + 1500 个 FaceDetection 对象。每次状态更新触发 Compose 重组，需要比较整个列表（即使只看进度条），重组成本随帧数 O(n) 增长。</p>
+  </div>
+  <div class="issue-impact p1">
+    <span class="issue-impact-label">影响</span>
+    长视频处理时内存占用持续增长，UI 卡顿，低端设备可能 OOM。Compose 重组比较深列表浪费 CPU。videoProcessedFrames 实际很少被 UI 完整使用，多数场景只需进度和最近帧预览。
+  </div>
+  <div class="fix-label">修复建议</div>
+  <p>1. 将 videoProcessedFrames 从 UiState 移除，改用独立 <code>SharedFlow&lt;VideoFrameResult&gt;</code> 事件流，UI 按需收集。</p>
+  <p>2. 若需保留列表，只保留最近 N 帧（如 10 帧）作为环形缓冲：</p>
+  <pre><span class="cmt">// 环形缓冲，只保留最近 10 帧用于预览</span>
+<span class="kw">private</span> <span class="kw">val</span> recentFrames = ArrayDeque&lt;VideoFrameResult&gt;(<span class="num">10</span>)
+
+<span class="kw">fun</span> <span class="fn">onFrameProcessed</span>(frame: VideoFrameResult) {
+    <span class="kw">if</span> (recentFrames.size >= <span class="num">10</span>) recentFrames.removeFirst()
+    recentFrames.addLast(frame)
+    <span class="cmt">// 只更新进度数字到 UiState，帧数据走 SharedFlow</span>
+}</pre>
+</div>
+
+<div class="issue" id="p1-4">
+  <div class="issue-head">
+    <span class="badge p1">P1</span>
+    <h3 class="issue-title">detectFaces 生产环境过度诊断日志（每帧执行重计算）</h3>
+  </div>
+  <div class="issue-meta">ml/OnnxFaceRecognition.kt · detectFaces() · 第 530-555 行；preprocessDetection() · 第 1099-1104 行</div>
+  <div class="issue-body">
+    <p><strong>问题</strong>：detectFaces 每次调用都用 <code>Log.i</code> 遍历前 20 个输出张量做采样：</p>
+    <pre><span class="kw">for</span> (i <span class="kw">in</span> <span class="num">0</span> <span class="kw">until</span> min(outputCount, <span class="num">20</span>)) {
+    <span class="kw">val</span> rawVal = outputs!!.get(i).value  <span class="cmt">// ❌ 触发 JNI 数据拷贝</span>
+    <span class="kw">val</span> flatArr = extractFlatFloatArray(rawVal)  <span class="cmt">// ❌ 递归展平，重计算</span>
+    <span class="kw">val</span> sample = flatArr.take(<span class="num">10</span>).joinToString(...) { <span class="str">"%.6f"</span>.format(it) }
+    Log.i(TAG, <span class="str">"  输出[$i]: ..."</span>)  <span class="cmt">// ❌ Log.i 级别，生产也执行</span>
+}</pre>
+    <p>preprocessDetection 每次也打印前 5 像素 hex 和 float 范围。<code>diagnosticScanOutputs</code> 在检测为 0 时遍历所有输出做 Top-10 排序。</p>
+    <p>视频处理 100ms/帧时，这些 Log.i 刷屏且 <code>extractFlatFloatArray</code> 的递归展平（对 12800 元素的 score 张量）消耗可观 CPU。Logcat I 级别日志在生产环境默认输出。</p>
+  </div>
+  <div class="issue-impact p1">
+    <span class="issue-impact-label">影响</span>
+    视频处理吞吐量下降 10-20%（诊断日志开销）。Logcat 被刷屏，影响其他日志排查。检测正常时诊断信息毫无价值。
+  </div>
+  <div class="fix-label">修复建议</div>
+  <pre><span class="cmt">// 用 BuildConfig.DEBUG 包裹诊断日志，或降级为 Log.v</span>
+<span class="kw">if</span> (BuildConfig.DEBUG) {
+    <span class="kw">for</span> (i <span class="kw">in</span> <span class="num">0</span> <span class="kw">until</span> min(outputCount, <span class="num">5</span>)) {  <span class="cmt">// 减少到 5 个</span>
+        <span class="kw">try</span> {
+            Log.v(TAG, <span class="str">"输出[$i]: ..."</span>)  <span class="cmt">// v 级别，默认不输出</span>
+        } <span class="kw">catch</span> (_: Exception) {}
+    }
+}
+
+<span class="cmt">// diagnosticScanOutputs 仅在 DEBUG 模式调用</span>
+<span class="kw">if</span> (detections.isEmpty() && outputCount > <span class="num">0</span> && BuildConfig.DEBUG) {
+    diagnosticScanOutputs(outputs!!, outputCount)
+}</pre>
+</div>
+
+<div class="issue" id="p1-5">
+  <div class="issue-head">
+    <span class="badge p1">P1</span>
+    <h3 class="issue-title">视频编码器中途不 drain 输出，可能导致输入阻塞</h3>
+  </div>
+  <div class="issue-meta">video/VideoProcessor.kt · encodeToVideo() · 第 363-407 行</div>
+  <div class="issue-body">
+    <p><strong>问题</strong>：<code>drainEncoderFinal</code> 只在所有输入帧排队后调用一次。输入循环中只 <code>dequeueInputBuffer</code> 和 <code>queueInputBuffer</code>，从不取出编码器输出。</p>
+    <pre><span class="kw">for</span> (frame <span class="kw">in</span> frames) {
+    <span class="kw">val</span> inputIndex = encoder.dequeueInputBuffer(TIMEOUT_US)
+    <span class="kw">if</span> (inputIndex >= <span class="num">0</span>) {
+        <span class="cmt">// ... 填充数据</span>
+        encoder.queueInputBuffer(inputIndex, <span class="num">0</span>, totalSize, pts, <span class="num">0</span>)
+    }
+    <span class="cmt">// ❌ 从不调用 dequeueOutputBuffer，编码器输出缓冲区可能耗尽</span>
+}
+<span class="cmt">// 所有帧排队后才 drain</span>
+drainEncoderFinal(encoder, muxer) { ... }</pre>
+    <p>MediaCodec 编码器输入和输出缓冲区有限（通常 4-8 个）。若不中途取出输出，输出缓冲区满后 <code>dequeueInputBuffer</code> 会阻塞或超时返回 -1，导致帧丢失。</p>
+  </div>
+  <div class="issue-impact p1">
+    <span class="issue-impact-label">影响</span>
+    长视频编码时部分帧因输入缓冲区获取失败被跳过（代码第 396-398 行的 else 分支提交空缓冲区），输出视频卡顿、丢帧。短视频可能无症状。
+  </div>
+  <div class="fix-label">修复建议</div>
+  <p>每排队一帧就 drain 一次输出（标准 MediaCodec 模式）：</p>
+  <pre><span class="kw">for</span> (frame <span class="kw">in</span> frames) {
+    <span class="kw">val</span> inputIndex = encoder.dequeueInputBuffer(TIMEOUT_US)
+    <span class="kw">if</span> (inputIndex >= <span class="num">0</span>) {
+        <span class="cmt">// ... 填充并 queueInputBuffer</span>
+    }
+    <span class="cmt">// ✅ 每帧 drain 输出，避免输出缓冲区耗尽</span>
+    drainEncoder(encoder, muxer, false)
+}
+<span class="cmt">// EOS 标记后做最终 drain</span>
+drainEncoder(encoder, muxer, <span class="kw">true</span>)</pre>
+</div>
+
+<div class="issue" id="p1-6">
+  <div class="issue-head">
+    <span class="badge p1">P1</span>
+    <h3 class="issue-title">编码器 PTS 时间戳计算错误（非单调递增）</h3>
+  </div>
+  <div class="issue-meta">video/VideoProcessor.kt · encodeToVideo() · 第 390-392 行</div>
+  <div class="issue-body">
+    <p><strong>问题</strong>：</p>
+    <pre><span class="kw">val</span> pts = frame.presentationTimeUs.coerceAtLeast(
+    (frameIdx * <span class="num">1_000_000L</span> / OUTPUT_FRAME_RATE)  <span class="cmt">// ❌ coerceAtLeast 语义错误</span>
+)</pre>
+    <p>原始 <code>frame.presentationTimeUs</code> 按 100ms 采样间隔（FRAME_SAMPLE_INTERVAL_US = 100_000），但 <code>OUTPUT_FRAME_RATE = 15</code>（66.6ms/帧）。<code>coerceAtLeast</code> 取较大值，导致：</p>
+    <p>1. 前几帧 pts = 原始值（100000, 200000, ...），跳变。<br>
+    2. 后续帧 pts 可能不单调（原始 pts 增长 100ms，计算值增长 66ms，交替取大值）。<br>
+    3. 编码器要求 pts 严格单调递增，违反会导致编码失败或输出视频播放异常（花屏、跳帧）。</p>
+  </div>
+  <div class="issue-impact p1">
+    <span class="issue-impact-label">影响</span>
+    输出视频可能在部分播放器上花屏、音画不同步或播放失败。MediaCodec 编码器对非单调 pts 行为不可预测。
+  </div>
+  <div class="fix-label">修复建议</div>
+  <pre><span class="cmt">// ✅ 直接用输出帧率重算 pts，保证严格单调递增</span>
+<span class="kw">val</span> pts = frameIdx * <span class="num">1_000_000L</span> / OUTPUT_FRAME_RATE
+encoder.queueInputBuffer(inputIndex, <span class="num">0</span>, totalSize, pts, <span class="num">0</span>)
+frameIdx++</pre>
+  <p>原始 presentationTimeUs 仅用于内部排序，不应直接作为编码 pts。</p>
+</div>
+
+<h2 id="p2">P2 改进建议</h2>
+
+<div class="issue" id="p2-1">
+  <div class="issue-head">
+    <span class="badge p2">P2</span>
+    <h3 class="issue-title">recognizeFace 每次识别重复过滤模板</h3>
+  </div>
+  <div class="issue-meta">ml/OnnxFaceRecognition.kt · recognizeFace() · 第 939 行</div>
+  <div class="issue-body">
+    <p><strong>问题</strong>：每次识别都 <code>templates.filter { it.value.size == EMBEDDING_DIM }</code> 创建新 Map。N 个模板时每次识别 O(N) 过滤 + Map 分配。ViewModel 已在加载时过滤过一次（第 186 行），此处重复。</p>
+    <pre><span class="bad"><span class="kw">val</span> validTemplates = templates.filter { it.value.size == OnnxFaceRecognition.EMBEDDING_DIM }
+<span class="cmt">// 每次识别都执行，N 个模板 N 次过滤</span></pre>
+  </div>
+  <div class="fix-label">修复建议</div>
+  <p>在模板加载时（ViewModel.initialize / setTemplate）一次性过滤，recognizeFace 信任传入的 templates 已合法，移除内部过滤。或缓存过滤结果。</p>
+</div>
+
+<div class="issue" id="p2-2">
+  <div class="issue-head">
+    <span class="badge p2">P2</span>
+    <h3 class="issue-title">cosineSimilarity 重复计算已知归一化向量的范数</h3>
+  </div>
+  <div class="issue-meta">ml/OnnxFaceRecognition.kt · cosineSimilarity() · 第 1869-1889 行</div>
+  <div class="issue-body">
+    <p><strong>问题</strong>：注释说"同时处理归一化和未归一化向量"，但实际两个向量都已 L2 归一化（embedding 提取后 l2Normalize，模板导入时 NpzParser.l2Normalize）。每次都算 <code>sqrt(normA) * sqrt(normB)</code> 是浪费。模板多时（100+ 人脸库）影响匹配性能。</p>
+    <pre><span class="bad"><span class="kw">val</span> denom = sqrt(normA) * sqrt(normB)  <span class="cmt">// ❌ 已归一化，normA=normB=1</span>
+<span class="kw">return</span> <span class="kw">if</span> (denom > <span class="num">0f</span>) dotProduct / denom <span class="kw">else</span> <span class="num">0f</span></pre>
+  </div>
+  <div class="fix-label">修复建议</div>
+  <pre><span class="good"><span class="cmt">// 两侧向量已 L2 归一化，余弦相似度 = 点积</span>
+<span class="kw">return</span> dotProduct</pre>
+  <p>若需防御性编程，可在加载时断言范数 ≈ 1，运行时直接点积。</p>
+</div>
+
+<div class="issue" id="p2-3">
+  <div class="issue-head">
+    <span class="badge p2">P2</span>
+    <h3 class="issue-title">extractEmbedding 失败静默返回零向量，无法区分错误</h3>
+  </div>
+  <div class="issue-meta">ml/OnnxFaceRecognition.kt · extractEmbedding() · 第 861、910 行</div>
+  <div class="issue-body">
+    <p><strong>问题</strong>：模型未加载或推理异常时返回 <code>FloatArray(512)</code> 全零。后续 <code>cosineSimilarity(零向量, 模板) = 0</code>，识别结果为 UNKNOWN。用户无法区分"推理失败"和"未匹配到模板"，排障困难。</p>
+  </div>
+  <div class="fix-label">修复建议</div>
+  <p>改为返回 <code>FloatArray?</code>，失败返回 null，recognizeFace 判断 null 时返回 <code>RecognitionResult("ERROR", -1f)</code> 或抛异常，UI 显式提示推理失败。</p>
+</div>
+
+<div class="issue" id="p2-4">
+  <div class="issue-head">
+    <span class="badge p2">P2</span>
+    <h3 class="issue-title">构建配置与依赖优化</h3>
+  </div>
+  <div class="issue-meta">gradle.properties · app/build.gradle.kts · proguard-rules.pro</div>
+  <div class="issue-body">
+    <p><strong>1. Jetifier 冗余</strong>：<code>android.enableJetifier=true</code> 但项目全用 AndroidX，无旧 support 库依赖。关闭可加速构建 10-30%。</p>
+    <p><strong>2. 过时签名配置</strong>：<code>android.enableV2Signing=true</code> / <code>android.enableV3Signing=true</code> 在 AGP 8.x 已过时（默认行为），保留无意义。</p>
+    <p><strong>3. Release 未启用混淆</strong>：<code>isMinifyEnabled = false</code>。166MB 模型 + 未压缩代码导致 APK 巨大。启用 R8 + 补全 proguard 规则可减小代码体积 30-50%（模型本身不压缩）。</p>
+    <p><strong>4. proguard-rules.pro 不完整</strong>：缺 Kotlin metadata keep（<code>-keep class kotlin.Metadata { *; }</code>）和 ONNX native 方法 keep。当前因未启用 minify 不影响，启用后需补全。</p>
+    <p><strong>5. Compose BOM 2024.02.00 可升级</strong>至 2024.06+ 获取 bug 修复和性能改进。</p>
+    <p><strong>6. GRADLE_USER_HOME=.gradle 项目本地缓存</strong>：每次克隆重新下载依赖，CI/团队协作不友好。建议移除，用默认全局缓存。</p>
+  </div>
+  <div class="fix-label">修复建议（gradle.properties）</div>
+  <pre><span class="cmt"># 移除 enableJetifier（全 AndroidX 无需）</span>
+android.enableJetifier=<span class="kw">false</span>
+<span class="cmt"># 移除过时的签名配置</span>
+<span class="cmt"># android.enableV2Signing=true  ← 删除</span>
+<span class="cmt"># android.enableV3Signing=true  ← 删除</span>
+<span class="cmt"># 移除项目本地 Gradle 缓存，用全局</span>
+<span class="cmt"># GRADLE_USER_HOME=.gradle  ← 删除</span></pre>
+</div>
+
+<div class="issue" id="p2-5">
+  <div class="issue-head">
+    <span class="badge p2">P2</span>
+    <h3 class="issue-title">NpzParser 解析策略过度复杂（4 种字符串策略 + raw 回退）</h3>
+  </div>
+  <div class="issue-meta">util/NpzParser.kt · parseNamesData() · 第 338-357 行</div>
+  <div class="issue-body">
+    <p><strong>问题</strong>：针对 InsightFace 标准 NPZ 格式（<code>names.npy</code> dtype <code>&lt;U9</code> UTF-32LE），实际只需 <code>tryParseUnicodeStrings</code> 一种策略。但代码依次尝试 pickle、pointer、scan、null-term 四种策略 + raw float32 暴力回退，近 700 行代码。虽然鲁棒，但维护成本高，且逐行中文注释让代码更膨胀。</p>
+    <p>此外 <code>scanReadableStrings</code> 的 UTF-8 判断 <code>b &gt;= 192</code> 不严谨（0x80-0xBF 是续接字节也会匹配），可能误判。</p>
+  </div>
+  <div class="fix-label">修复建议</div>
+  <p>保留 Unicode 策略作为主路径，其他策略降级为 DEBUG 日志的回退。若项目明确只支持 InsightFace buffalo_l 格式，可大幅精简。重构后预计 300 行以内。</p>
+</div>
+
+<div class="issue" id="p2-6">
+  <div class="issue-head">
+    <span class="badge p2">P2</span>
+    <h3 class="issue-title">AndroidManifest 缺少视频权限 + 资源管理细节</h3>
+  </div>
+  <div class="issue-meta">AndroidManifest.xml · 第 6-8 行；ml/OnnxFaceRecognition.kt · close()</div>
+  <div class="issue-body">
+    <p><strong>1. 缺少 READ_MEDIA_VIDEO 权限</strong>：视频识别功能需读取视频，但 manifest 只声明 <code>READ_MEDIA_IMAGES</code>。Android 13+ 选择视频文件可能受限（取决于 Photo Picker 是否使用，但 SAF 选择视频仍需权限）。</p>
+    <pre><span class="bad">&lt;uses-permission android:name=<span class="str">"android.permission.READ_MEDIA_IMAGES"</span> /&gt;
+<span class="cmt">&lt;!-- 缺少 READ_MEDIA_VIDEO，视频功能可能受限 --&gt;</span></pre>
+    <p><strong>2. OnnxFaceRecognition.close() 无同步保护</strong>：若 close() 与 detectFaces 并发执行（如 ViewModel.onCleared 与正在进行的识别），可能 NPE。建议加 <code>@Synchronized</code> 或 volatile 守卫。</p>
+    <p><strong>3. ViewModel.recycleResultBitmap() 是 dead code</strong>：定义于第 1033 行但全项目未见调用，可删除。</p>
+    <p><strong>4. VideoProcessor.drawVideoResultsInPlace 对 hardware bitmap copy 后原图未 recycle</strong>（第 532-536 行），依赖 GC 回收，大视频时内存峰值高。</p>
+  </div>
+  <div class="fix-label">修复建议（AndroidManifest.xml）</div>
+  <pre><span class="good">&lt;uses-permission android:name=<span class="str">"android.permission.READ_MEDIA_IMAGES"</span> /&gt;
+&lt;uses-permission android:name=<span class="str">"android.permission.READ_MEDIA_VIDEO"</span> /&gt;
+<span class="cmt">&lt;!-- Android 12 及以下 --&gt;</span>
+&lt;uses-permission android:name=<span class="str">"android.permission.READ_EXTERNAL_STORAGE"</span>
+    android:maxSdkVersion=<span class="str">"32"</span> /&gt;</pre>
+</div>
+
+<hr>
+
+<h2>审查总结</h2>
+
+<h3>优点</h3>
+<p>1. <strong>核心推理实现正确</strong>：SCRFD 多步长输出解析、5 点最小二乘相似变换对齐、ArcFace 嵌入提取与 L2 归一化、余弦相似度匹配，算法实现符合 InsightFace 规范，BGR 通道顺序和归一化系数正确。</p>
+<p>2. <strong>注释规范执行到位</strong>：所有 Kotlin 逻辑代码逐行中文注释，符合 CLAUDE.md 要求，变量用途、函数目的、异常边界标注清晰。</p>
+<p>3. <strong>并发设计有想法</strong>：channelFlow 生产者-消费者模式、PriorityBlockingQueue 保序输出、动态并发度调优，思路正确，只是实现有竞态 bug。</p>
+<p>4. <strong>资源释放基本到位</strong>：ONNX Session/Tensor、MediaCodec、MediaMuxer、Bitmap 都有 try-finally 或 close() 保护。</p>
+
+<h3>主要风险</h3>
+<p>1. <strong>视频处理流水线稳定性</strong>：P0-1 的队列死锁 + P0-2 的 Semaphore 下限缺失 + P1-5/P1-6 的编码器问题，让视频功能在生产环境可靠性存疑。建议优先修复 P0 后做完整视频回归测试。</p>
+<p>2. <strong>NNAPI 伪启用是性能损失</strong>：项目宣传"高性能"但实际未用硬件加速。修复 P1-1 后建议重新 benchmark，更新 README 性能数据。</p>
+<p>3. <strong>生产日志过多</strong>：P1-4 的诊断日志在 release 包仍执行，影响视频吞吐和电池。建议引入 BuildConfig.DEBUG 开关。</p>
+
+<h3>建议修复优先级</h3>
+<p>1. <strong>立即修复</strong>（P0）：VideoProcessor 队列死锁补偿 + Semaphore 下限保护。<br>
+2. <strong>本周修复</strong>（P1 核心）：NNAPI 正确启用、编码器 drain + PTS、ViewModel 帧列表改造。<br>
+3. <strong>迭代优化</strong>（P1 其余 + P2）：诊断日志开关、模板过滤缓存、构建配置清理、权限补全。</p>
+
+<div class="footer">
+  审查报告生成于 2026-06-18 · 由 Buddy 审查 · 项目 FaceRecognition @ D:\data\Desktop\android_project
+</div>
+
+</div>
+</body>
+</html>
