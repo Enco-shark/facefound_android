@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-FaceFound is an offline face recognition Android app built on InsightFace (buffalo_l) models and ONNX Runtime Mobile. All inference runs on-device with no network dependency. Package: `com.Enco.facefound`.
+FaceRecognition is an offline face recognition Android app built on InsightFace (buffalo_l) models and ONNX Runtime Mobile. All inference runs on-device with no network dependency. Package: `com.Enco.facerecognition`.
 
 ## Build & Run
 

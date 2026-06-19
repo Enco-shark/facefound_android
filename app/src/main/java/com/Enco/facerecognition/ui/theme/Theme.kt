@@ -1,4 +1,4 @@
-package com.Enco.facefound.ui.theme // 声明包名为UI主题模块
+package com.Enco.facerecognition.ui.theme // 声明包名为UI主题模块
 
 import android.app.Activity // 导入Android Activity类
 import android.os.Build // 导入Android Build类，用于版本判断
@@ -13,23 +13,23 @@ import androidx.compose.runtime.SideEffect // 导入SideEffect副作用函数
 import androidx.compose.ui.platform.LocalContext // 导入本地上下文
 import androidx.compose.ui.platform.LocalView // 导入本地视图
 import androidx.core.view.WindowCompat // 导入窗口兼容工具
-import com.Enco.facefound.ui.theme.BackgroundDark // 导入深色背景色
-import com.Enco.facefound.ui.theme.BackgroundLight // 导入浅色背景色
-import com.Enco.facefound.ui.theme.OnBackgroundDark // 导入深色背景上的文字色
-import com.Enco.facefound.ui.theme.OnBackgroundLight // 导入浅色背景上的文字色
-import com.Enco.facefound.ui.theme.OnPrimaryDark // 导入深色主色上的文字色
-import com.Enco.facefound.ui.theme.OnPrimaryLight // 导入浅色主色上的文字色
-import com.Enco.facefound.ui.theme.OnSecondaryLight // 导入浅色次要色上的文字色
-import com.Enco.facefound.ui.theme.OnSurfaceDark // 导入深色表面上的文字色
-import com.Enco.facefound.ui.theme.OnSurfaceLight // 导入浅色表面上的文字色
-import com.Enco.facefound.ui.theme.PrimaryDark // 导入深色主题主色
-import com.Enco.facefound.ui.theme.PrimaryDarkBg // 导入深色主题主色容器色
-import com.Enco.facefound.ui.theme.PrimaryLight // 导入浅色主题主色
-import com.Enco.facefound.ui.theme.SecondaryLight // 导入浅色主题次要色
-import com.Enco.facefound.ui.theme.SurfaceDark // 导入深色表面色
-import com.Enco.facefound.ui.theme.SurfaceLight // 导入浅色表面色
-import com.Enco.facefound.ui.theme.SurfaceVariantDark // 导入深色次表面色
-import com.Enco.facefound.ui.theme.SurfaceVariantLight // 导入浅色次表面色
+import com.Enco.facerecognition.ui.theme.BackgroundDark // 导入深色背景色
+import com.Enco.facerecognition.ui.theme.BackgroundLight // 导入浅色背景色
+import com.Enco.facerecognition.ui.theme.OnBackgroundDark // 导入深色背景上的文字色
+import com.Enco.facerecognition.ui.theme.OnBackgroundLight // 导入浅色背景上的文字色
+import com.Enco.facerecognition.ui.theme.OnPrimaryDark // 导入深色主色上的文字色
+import com.Enco.facerecognition.ui.theme.OnPrimaryLight // 导入浅色主色上的文字色
+import com.Enco.facerecognition.ui.theme.OnSecondaryLight // 导入浅色次要色上的文字色
+import com.Enco.facerecognition.ui.theme.OnSurfaceDark // 导入深色表面上的文字色
+import com.Enco.facerecognition.ui.theme.OnSurfaceLight // 导入浅色表面上的文字色
+import com.Enco.facerecognition.ui.theme.PrimaryDark // 导入深色主题主色
+import com.Enco.facerecognition.ui.theme.PrimaryDarkBg // 导入深色主题主色容器色
+import com.Enco.facerecognition.ui.theme.PrimaryLight // 导入浅色主题主色
+import com.Enco.facerecognition.ui.theme.SecondaryLight // 导入浅色主题次要色
+import com.Enco.facerecognition.ui.theme.SurfaceDark // 导入深色表面色
+import com.Enco.facerecognition.ui.theme.SurfaceLight // 导入浅色表面色
+import com.Enco.facerecognition.ui.theme.SurfaceVariantDark // 导入深色次表面色
+import com.Enco.facerecognition.ui.theme.SurfaceVariantLight // 导入浅色次表面色
 
 // 深色主题配色方案 —— 使用现代蓝紫暗色系
 private val DarkColorScheme = darkColorScheme(

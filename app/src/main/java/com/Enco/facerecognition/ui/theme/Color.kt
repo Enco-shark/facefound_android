@@ -1,4 +1,4 @@
-package com.Enco.facefound.ui.theme // 声明包名为UI主题模块
+package com.Enco.facerecognition.ui.theme // 声明包名为UI主题模块
 
 import androidx.compose.ui.graphics.Color // 导入Compose颜色类
 

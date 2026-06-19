@@ -5,11 +5,11 @@ plugins {
 
 
 android {
-    namespace = "com.Enco.facefound"
+    namespace = "com.Enco.facerecognition"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.Enco.facefound"
+        applicationId = "com.Enco.facerecognition"
         minSdk = 24
         targetSdk = 34
         versionCode = 1

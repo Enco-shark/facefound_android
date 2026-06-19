@@ -1,8 +1,8 @@
-# FaceFound - 离线人脸识别 Android 应用
+# FaceRecognition - 离线人脸识别 Android 应用
 
 基于 InsightFace (buffalo_l) 和 ONNX Runtime Mobile 的高性能离线人脸识别 Android 应用。
 
-**仓库地址**: https://github.com/Enco-shark/facefound_android
+**仓库地址**: https://github.com/Enco-shark/facerecognition_android
 
 ---
 
@@ -170,7 +170,7 @@ android_project/
 │       ├── assets/                         # 模型文件目录
 │       │   ├── det_10g.onnx                #   人脸检测模型 (~16MB)
 │       │   └── w600k_r50.onnx              #   人脸识别模型 (~166MB)
-│       ├── java/com/Enco/facefound/
+│       ├── java/com/Enco/facerecognition/
 │       │   ├── MainActivity.kt             # 主 Activity（Compose 入口）
 │       │   ├── FaceRecognitionApp.kt       # Application 类
 │       │   ├── ml/

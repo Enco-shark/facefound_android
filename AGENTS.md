@@ -2,7 +2,7 @@
 
 ## Project
 
-FaceFound — offline face recognition Android app. Single-module Kotlin + Jetpack Compose + Material 3. Package: `com.Enco.facefound`. All inference on-device via ONNX Runtime, no network dependency.
+FaceRecognition — offline face recognition Android app. Single-module Kotlin + Jetpack Compose + Material 3. Package: `com.Enco.facerecognition`. All inference on-device via ONNX Runtime, no network dependency.
 
 ## Build Commands
 
@@ -32,7 +32,7 @@ Output: `app/build/outputs/apk/debug/app-debug.apk`
 
 ## Architecture
 
-Single `:app` module. Source root: `app/src/main/java/com/Enco/facefound/`
+Single `:app` module. Source root: `app/src/main/java/com/Enco/facerecognition/`
 
 | Path | Role |
 |------|------|
@@ -66,7 +66,7 @@ Single `:app` module. Source root: `app/src/main/java/com/Enco/facefound/`
 - **`build_tool.py`** is a convenience wrapper (gitignored) that runs Gradle with colored output and logs to `build_logs/`. Use it for cleaner build feedback.
 - **No CI pipeline** — no GitHub Actions, no pre-commit hooks configured.
 - **Release build has `isMinifyEnabled = false`** — no ProGuard shrinking by default.
-- **Settings persistence** — threshold, detectionThreshold, isDarkTheme, imageDownsample, videoThreshold, videoDetectionThreshold, videoSampleRate are saved to SharedPreferences (`facefound_settings`) on every change and restored on startup.
+- **Settings persistence** — threshold, detectionThreshold, isDarkTheme, imageDownsample, videoThreshold, videoDetectionThreshold, videoSampleRate are saved to SharedPreferences (`facerecognition_settings`) on every change and restored on startup.
 - **History persistence** — recognition history is saved as JSON in SharedPreferences (`recognition_history`), max 50 entries, loaded on startup.
 - **No camera permission** — CameraX and CAMERA permission were removed. Only storage permissions remain.
 - **`Session.run` is NOT thread-safe** — ONNX inference uses `Semaphore(2)` to limit concurrency. Do not call `detectFaces`/`extractEmbedding` concurrently without the semaphore.

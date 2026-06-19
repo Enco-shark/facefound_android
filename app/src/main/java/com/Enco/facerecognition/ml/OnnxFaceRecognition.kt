@@ -1,4 +1,4 @@
-package com.Enco.facefound.ml // 声明当前文件所属的包路径，用于组织和引用项目中的类
+package com.Enco.facerecognition.ml // 声明当前文件所属的包路径，用于组织和引用项目中的类
 
 // 导入 ONNX Runtime 的核心类，包括 OrtSession、OrtEnvironment、OnnxTensor 等
 import ai.onnxruntime.*

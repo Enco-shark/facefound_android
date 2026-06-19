@@ -1,4 +1,4 @@
-# FaceFound 模型文件放置说明
+# FaceRecognition 模型文件放置说明
 
 请将以下 InsightFace buffalo_l 模型文件放置在此目录：
 

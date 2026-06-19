@@ -1,4 +1,4 @@
-package com.Enco.facefound // 声明包名为应用根包
+package com.Enco.facerecognition // 声明包名为应用根包
 
 import android.Manifest // 导入Android权限常量
 import android.content.pm.PackageManager // 导入包管理器，用于权限检查
@@ -15,9 +15,9 @@ import androidx.compose.runtime.getValue // 导入by委托取值
 import androidx.compose.ui.Modifier // 导入Compose修饰符
 import androidx.lifecycle.ViewModelProvider // 导入ViewModel提供者
 import androidx.core.content.ContextCompat // 导入兼容版权限检查工具
-import com.Enco.facefound.ui.theme.FaceRecognitionTheme // 导入应用主题
-import com.Enco.facefound.ui.screens.MainScreen // 导入主屏幕Composable
-import com.Enco.facefound.ui.viewmodel.FaceRecognitionViewModel // 导入ViewModel
+import com.Enco.facerecognition.ui.theme.FaceRecognitionTheme // 导入应用主题
+import com.Enco.facerecognition.ui.screens.MainScreen // 导入主屏幕Composable
+import com.Enco.facerecognition.ui.viewmodel.FaceRecognitionViewModel // 导入ViewModel
 
 class MainActivity : ComponentActivity() { // 主Activity，继承ComponentActivity以支持Compose
 

@@ -1,4 +1,4 @@
-package com.Enco.facefound // 声明包名为人脸识别应用根包
+package com.Enco.facerecognition // 声明包名为人脸识别应用根包
 
 import android.app.Application // 导入Android Application基类
 import android.util.Log // 导入Android日志工具

@@ -1,4 +1,4 @@
-package com.Enco.facefound.ui.screens // 声明当前文件所属的包路径，用于视频识别界面
+package com.Enco.facerecognition.ui.screens // 声明当前文件所属的包路径，用于视频识别界面
 
 // 导入Android Uri类，用于表示视频文件的统一资源标识符
 import android.net.Uri
@@ -115,7 +115,7 @@ import androidx.compose.ui.unit.dp
 // 导入Coil的AsyncImage组件，用于异步加载和显示图片
 import coil.compose.AsyncImage
 // 导入人脸识别视图模型，包含视频处理相关的业务逻辑
-import com.Enco.facefound.ui.viewmodel.FaceRecognitionViewModel
+import com.Enco.facerecognition.ui.viewmodel.FaceRecognitionViewModel
 
 // 定义视频识别主屏幕的可组合函数
 @Composable
@@ -276,7 +276,7 @@ fun VideoSourceCard(
     // 当前选中的视频URI，可为空
     videoUri: Uri?,
     // 视频的详细信息，包含分辨率和时长等
-    videoInfo: com.Enco.facefound.video.VideoProcessor.VideoInfo?,
+    videoInfo: com.Enco.facerecognition.video.VideoProcessor.VideoInfo?,
     // 用户点击选择视频时的回调函数
     onSelectVideo: () -> Unit
 ) {
@@ -852,7 +852,7 @@ fun VideoControlButtons(
 // 函数签名：接收单帧处理结果数据
 fun VideoFramePreviewCard(
     // 视频帧处理结果对象，包含帧索引、检测结果和识别名称
-    frame: com.Enco.facefound.ui.viewmodel.FaceRecognitionViewModel.VideoFrameResult
+    frame: com.Enco.facerecognition.ui.viewmodel.FaceRecognitionViewModel.VideoFrameResult
 ) {
     // 创建帧预览卡片
     Card(

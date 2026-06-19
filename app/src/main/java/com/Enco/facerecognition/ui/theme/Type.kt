@@ -1,4 +1,4 @@
-package com.Enco.facefound.ui.theme // 声明包名为UI主题模块
+package com.Enco.facerecognition.ui.theme // 声明包名为UI主题模块
 
 import androidx.compose.material3.Typography // 导入Material3排版系统
 import androidx.compose.ui.text.TextStyle // 导入文本样式类

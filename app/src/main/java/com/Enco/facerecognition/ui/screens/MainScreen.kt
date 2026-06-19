@@ -1,4 +1,4 @@
-package com.Enco.facefound.ui.screens // 声明当前文件所属的包路径，用于组织项目结构
+package com.Enco.facerecognition.ui.screens // 声明当前文件所属的包路径，用于组织项目结构
 
 // 以下为导入语句，引入项目所需的各类依赖库
 
@@ -72,8 +72,10 @@ import androidx.compose.runtime.setValue // 导入setValue委托，用于属性�
 import androidx.compose.ui.Alignment // 导入对齐方式，用于控制组件在容器中的对齐位置
 import androidx.compose.ui.Modifier // 导入Modifier修饰符，用于修饰和配置组件
 import androidx.compose.ui.draw.clip // 导入clip修饰符，用于裁剪组件形状
+import androidx.compose.ui.draw.shadow // 导入shadow修饰符，用于添加阴影效果
 import androidx.compose.ui.graphics.Color // 导入Color类，用于表示颜色值
 import androidx.compose.ui.graphics.asImageBitmap // 导入asImageBitmap扩展函数，用于将Android Bitmap转为Compose ImageBitmap
+import com.Enco.facerecognition.ui.theme.GradientEnd // 导入渐变终点颜色，用于按钮渐变效果
 import androidx.compose.ui.graphics.vector.ImageVector // 导入ImageVector类，用于表示矢量图标
 import androidx.compose.ui.text.font.FontWeight // 导入FontWeight类，用于设置字体粗细
 import androidx.compose.ui.text.style.TextAlign // 导入TextAlign类，用于设置文本对齐方式
@@ -84,8 +86,8 @@ import android.net.Uri // 导入Uri类，用于表示资源标识符（如图片
 import androidx.activity.compose.rememberLauncherForActivityResult // 导入ActivityResult启动器记忆函数
 import androidx.activity.result.contract.ActivityResultContracts // 导入ActivityResult合约，定义启动器类型
 import coil.compose.AsyncImage // 导入Coil的异步图片加载组件
-import com.Enco.facefound.BuildConfig // 导入构建配置类，用于获取版本号等信息
-import com.Enco.facefound.ui.viewmodel.FaceRecognitionViewModel // 导入人脸识别视图模型
+import com.Enco.facerecognition.BuildConfig // 导入构建配置类，用于获取版本号等信息
+import com.Enco.facerecognition.ui.viewmodel.FaceRecognitionViewModel // 导入人脸识别视图模型
 import kotlinx.coroutines.launch // 导入协程启动函数
 import java.text.SimpleDateFormat // 导入日期格式化类，用于格式化时间戳
 import java.util.Date // 导入Date类，用于表示日期时间对象

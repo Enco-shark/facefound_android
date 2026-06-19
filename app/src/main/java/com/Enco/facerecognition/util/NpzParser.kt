@@ -1,4 +1,4 @@
-package com.Enco.facefound.util // 声明包名为工具模块
+package com.Enco.facerecognition.util // 声明包名为工具模块
 
 import android.content.Context // 导入Android上下文
 import android.net.Uri // 导入URI类

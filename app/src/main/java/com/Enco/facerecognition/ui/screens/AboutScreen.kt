@@ -1,4 +1,4 @@
-package com.Enco.facefound.ui.screens // 声明当前文件所属的包路径，用于关于屏幕
+package com.Enco.facerecognition.ui.screens // 声明当前文件所属的包路径，用于关于屏幕
 
 import android.content.Intent // 导入Intent类，用于打开链接
 import android.net.Uri // 导入Uri类，用于表示链接地址
@@ -42,7 +42,7 @@ import androidx.compose.ui.platform.LocalContext // 导入本地上下文
 import androidx.compose.ui.text.font.FontWeight // 导入字体粗细
 import androidx.compose.ui.text.style.TextAlign // 导入文本对齐方式
 import androidx.compose.ui.unit.dp // 导入dp单位
-import com.Enco.facefound.BuildConfig // 导入构建配置
+import com.Enco.facerecognition.BuildConfig // 导入构建配置
 
 @Composable // 标记AboutScreen为可组合函数
 fun AboutScreen( // 定义关于屏幕函数

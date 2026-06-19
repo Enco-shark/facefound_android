@@ -1,4 +1,4 @@
-package com.Enco.facefound.ui.viewmodel // 声明当前文件所属的包路径，用于组织和管理ViewModel相关的类
+package com.Enco.facerecognition.ui.viewmodel // 声明当前文件所属的包路径，用于组织和管理ViewModel相关的类
 
 import android.app.Application // 导入Android应用类，用于获取应用级别的上下文
 import android.content.Context // 导入上下文类，用于访问系统服务和资源
@@ -25,10 +25,10 @@ import kotlinx.coroutines.async // 导入async构建器，用于启动带返回�
 import kotlinx.coroutines.awaitAll // 导入awaitAll扩展函数，用于等待所有协程完成
 import kotlinx.coroutines.sync.Semaphore // 导入信号量，用于限制并发数
 import kotlinx.coroutines.sync.withPermit // 导入withPermit扩展函数，用于获取信号量许可
-import com.Enco.facefound.ml.OnnxFaceRecognition // 导入ONNX人脸识别核心类，提供人脸检测和识别功能
-import com.Enco.facefound.util.NpzParser // 导入NPZ文件解析器，用于解析NPZ格式的模板文件
-import com.Enco.facefound.util.TemplateRepository // 导入模板仓库类，用于持久化存储和加载人脸模板数据
-import com.Enco.facefound.video.VideoProcessor // 导入视频处理器类，用于逐帧处理视频中的人脸识别
+import com.Enco.facerecognition.ml.OnnxFaceRecognition // 导入ONNX人脸识别核心类，提供人脸检测和识别功能
+import com.Enco.facerecognition.util.NpzParser // 导入NPZ文件解析器，用于解析NPZ格式的模板文件
+import com.Enco.facerecognition.util.TemplateRepository // 导入模板仓库类，用于持久化存储和加载人脸模板数据
+import com.Enco.facerecognition.video.VideoProcessor // 导入视频处理器类，用于逐帧处理视频中的人脸识别
 import java.io.File // 导入文件类，用于操作本地文件系统中的文件
 import java.text.SimpleDateFormat // 导入日期格式化类，用于将日期格式化为指定的字符串模式
 import java.util.Date // 导入日期类，用于获取当前时间戳
@@ -133,7 +133,7 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
 
     companion object { // 伴生对象，存放类级别的静态成员
         private const val TAG = "FaceRecognitionVM" // 日志标签常量，用于Logcat中过滤本ViewModel的日志输出
-        private const val PREFS_NAME = "facefound_settings" // SharedPreferences文件名
+        private const val PREFS_NAME = "facerecognition_settings" // SharedPreferences文件名
         private const val KEY_THRESHOLD = "threshold" // 识别阈值的存储键
         private const val KEY_DETECTION_THRESHOLD = "detection_threshold" // 检测阈值的存储键
         private const val KEY_DARK_THEME = "dark_theme" // 深色主题的存储键
@@ -145,7 +145,7 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
     } // 结束companion object
 
     private val prefs: SharedPreferences by lazy { // 懒加载SharedPreferences实例，用于持久化存储用户设置
-        getApplication<Application>().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) // 获取或创建名为facefound_settings的SharedPreferences文件
+        getApplication<Application>().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) // 获取或创建名为facerecognition_settings的SharedPreferences文件
     } // 结束prefs属性
 
     // --- 初始化 --- // 分隔注释，标记下方为初始化相关的函数
@@ -708,13 +708,13 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
         val bitmap = _uiState.value.resultBitmap?.copy(Bitmap.Config.ARGB_8888, false) ?: return // 复制结果位图以便安全保存，如果为空则直接返回
         viewModelScope.launch(Dispatchers.IO) { // 在IO线程中启动协程执行保存操作
             try { // 尝试执行保存操作
-                val fileName = "FaceFound_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())}.jpg" // 生成带时间戳的文件名
+                val fileName = "FaceRecognition_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())}.jpg" // 生成带时间戳的文件名
                 val resolver = appContext.contentResolver // 获取内容解析器，用于操作MediaStore
                 val contentValues = android.content.ContentValues().apply { // 创建ContentValues用于插入MediaStore记录
                     put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, fileName) // 设置文件显示名称
                     put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/jpeg") // 设置MIME类型为JPEG图片
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) { // 如果Android版本 >= 10（API 29）
-                        put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FaceFound") // 设置相对路径为Pictures/FaceFound
+                        put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FaceRecognition") // 设置相对路径为Pictures/FaceRecognition
                         put(android.provider.MediaStore.Images.Media.IS_PENDING, 1) // 标记为待处理状态，防止在写入完成前被其他应用访问
                     } // 结束Android Q以上的额外设置
                 } // 结束ContentValues创建
@@ -893,7 +893,7 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
 
                 val outputFile = File( // 创建输出视频文件对象
                     appContext.cacheDir, // 使用应用缓存目录
-                    "FaceFound_video_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())}.mp4" // 生成带时间戳的MP4文件名
+                    "FaceRecognition_video_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())}.mp4" // 生成带时间戳的MP4文件名
                 ) // 结束File创建
 
                 val videoInfo = currentState.videoInfo // 获取视频元信息
@@ -973,7 +973,7 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
                 put(android.provider.MediaStore.Video.Media.DISPLAY_NAME, fileName) // 设置视频文件显示名称
                 put(android.provider.MediaStore.Video.Media.MIME_TYPE, "video/mp4") // 设置MIME类型为MP4视频
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) { // 如果Android版本 >= 10
-                    put(android.provider.MediaStore.Video.Media.RELATIVE_PATH, "Movies/FaceFound") // 设置相对路径为Movies/FaceFound
+                    put(android.provider.MediaStore.Video.Media.RELATIVE_PATH, "Movies/FaceRecognition") // 设置相对路径为Movies/FaceRecognition
                     put(android.provider.MediaStore.Video.Media.IS_PENDING, 1) // 标记为待处理状态
                 } // 结束Android Q以上的额外设置
             } // 结束ContentValues创建
@@ -996,7 +996,7 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
                     resolver.update(uri, contentValues, null, null) // 更新MediaStore记录，解除待处理状态
                 } // 结束Android Q以上的状态更新
 
-                addLog("💾 视频已保存到 Movies/FaceFound: $fileName") // 记录视频保存成功的日志
+                addLog("💾 视频已保存到 Movies/FaceRecognition: $fileName") // 记录视频保存成功的日志
                 uri // 返回保存后的URI
             } else { // 如果URI插入失败
                 null // 返回null

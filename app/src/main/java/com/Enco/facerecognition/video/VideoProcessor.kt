@@ -1,4 +1,4 @@
-package com.Enco.facefound.video // 声明包名为视频处理模块
+package com.Enco.facerecognition.video // 声明包名为视频处理模块
 
 import android.content.Context // 导入Android上下文
 import android.graphics.Bitmap // 导入位图类
@@ -14,7 +14,7 @@ import android.media.MediaMetadataRetriever // 导入媒体元数据提取器
 import android.media.MediaMuxer // 导入媒体复用器
 import android.net.Uri // 导入URI类
 import android.util.Log // 导入日志工具
-import com.Enco.facefound.ml.OnnxFaceRecognition // 导入人脸识别引擎
+import com.Enco.facerecognition.ml.OnnxFaceRecognition // 导入人脸识别引擎
 import kotlinx.coroutines.Dispatchers // 导入协程调度器
 import kotlinx.coroutines.channels.BufferOverflow // 导入缓冲区溢出策略
 import kotlinx.coroutines.channels.Channel // 导入协程通道
