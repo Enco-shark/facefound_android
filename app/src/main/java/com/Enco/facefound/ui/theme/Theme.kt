@@ -13,23 +13,60 @@ import androidx.compose.runtime.SideEffect // 导入SideEffect副作用函数
 import androidx.compose.ui.platform.LocalContext // 导入本地上下文
 import androidx.compose.ui.platform.LocalView // 导入本地视图
 import androidx.core.view.WindowCompat // 导入窗口兼容工具
+import com.Enco.facefound.ui.theme.BackgroundDark // 导入深色背景色
+import com.Enco.facefound.ui.theme.BackgroundLight // 导入浅色背景色
+import com.Enco.facefound.ui.theme.OnBackgroundDark // 导入深色背景上的文字色
+import com.Enco.facefound.ui.theme.OnBackgroundLight // 导入浅色背景上的文字色
+import com.Enco.facefound.ui.theme.OnPrimaryDark // 导入深色主色上的文字色
+import com.Enco.facefound.ui.theme.OnPrimaryLight // 导入浅色主色上的文字色
+import com.Enco.facefound.ui.theme.OnSecondaryLight // 导入浅色次要色上的文字色
+import com.Enco.facefound.ui.theme.OnSurfaceDark // 导入深色表面上的文字色
+import com.Enco.facefound.ui.theme.OnSurfaceLight // 导入浅色表面上的文字色
+import com.Enco.facefound.ui.theme.PrimaryDark // 导入深色主题主色
+import com.Enco.facefound.ui.theme.PrimaryDarkBg // 导入深色主题主色容器色
+import com.Enco.facefound.ui.theme.PrimaryLight // 导入浅色主题主色
+import com.Enco.facefound.ui.theme.SecondaryLight // 导入浅色主题次要色
+import com.Enco.facefound.ui.theme.SurfaceDark // 导入深色表面色
+import com.Enco.facefound.ui.theme.SurfaceLight // 导入浅色表面色
+import com.Enco.facefound.ui.theme.SurfaceVariantDark // 导入深色次表面色
+import com.Enco.facefound.ui.theme.SurfaceVariantLight // 导入浅色次表面色
 
-private val DarkColorScheme = darkColorScheme( // 定义深色主题配色方案
-    primary = Purple80, // 主色使用深色主题紫色
-    secondary = PurpleGrey80, // 次要色使用深色主题灰紫色
-    tertiary = Pink80 // 第三色使用深色主题粉红色
+// 深色主题配色方案 —— 使用现代蓝紫暗色系
+private val DarkColorScheme = darkColorScheme(
+    primary = PrimaryDark,           // 主色：淡紫
+    onPrimary = OnPrimaryDark,       // 主色上的文字/图标：深蓝黑
+    primaryContainer = PrimaryDarkBg, // 主色容器：深蓝紫背景（按钮背景）
+    onPrimaryContainer = PrimaryDark, // 主色容器上的文字：淡紫
+    secondary = SurfaceVariantDark,    // 次要色：深次表面
+    onSecondary = OnSurfaceDark,      // 次要色上的文字
+    background = BackgroundDark,      // 页面背景：深蓝黑
+    onBackground = OnBackgroundDark,  // 背景上的文字：淡紫白
+    surface = SurfaceDark,             // 表面（卡片）：深蓝灰
+    onSurface = OnSurfaceDark,        // 表面上的文字
+    surfaceVariant = SurfaceVariantDark, // 次表面（列表等）
+    onSurfaceVariant = OnSurfaceVariantDark, // 次表面上的文字
 )
 
-private val LightColorScheme = lightColorScheme( // 定义浅色主题配色方案
-    primary = Purple40, // 主色使用浅色主题紫色
-    secondary = PurpleGrey40, // 次要色使用浅色主题灰紫色
-    tertiary = Pink40 // 第三色使用浅色主题粉红色
+// 浅色主题配色方案 —— 现代蓝紫浅色系，极淡紫白背景
+private val LightColorScheme = lightColorScheme(
+    primary = PrimaryLight,           // 主色：蓝紫
+    onPrimary = OnPrimaryLight,       // 主色上的文字：白色
+    primaryContainer = SecondaryLight, // 主色容器：淡紫灰背景
+    onPrimaryContainer = PrimaryLight, // 主色容器上的文字：蓝紫
+    secondary = SecondaryLight,        // 次要色：淡紫灰
+    onSecondary = OnSecondaryLight,   // 次要色上的文字：蓝紫
+    background = BackgroundLight,      // 页面背景：极淡紫白
+    onBackground = OnBackgroundLight, // 背景上的文字：深蓝黑
+    surface = SurfaceLight,           // 表面（卡片）：纯白
+    onSurface = OnSurfaceLight,       // 表面上的文字：深蓝黑
+    surfaceVariant = SurfaceVariantLight, // 次表面：淡紫灰
+    onSurfaceVariant = OnSurfaceVariantLight, // 次表面上的文字：中灰
 )
 
 @Composable // 标记为Compose可组合函数
 fun FaceRecognitionTheme( // 定义人脸识别应用主题函数
     darkTheme: Boolean = isSystemInDarkTheme(), // 是否深色主题，默认跟随系统
-    dynamicColor: Boolean = true, // 是否使用动态颜色，默认开启(Android 12+)
+    dynamicColor: Boolean = false, // 是否使用动态颜色，默认关闭（使用自定义配色）
     content: @Composable () -> Unit // 主题包裹的内容lambda
 ) {
     val colorScheme = when { // 根据条件选择配色方案
@@ -37,8 +74,8 @@ fun FaceRecognitionTheme( // 定义人脸识别应用主题函数
             val context = LocalContext.current // 获取当前上下文
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context) // 根据深浅色选择动态配色
         }
-        darkTheme -> DarkColorScheme // 深色主题使用静态深色配色
-        else -> LightColorScheme // 浅色主题使用静态浅色配色
+        darkTheme -> DarkColorScheme // 深色主题使用自定义深色配色
+        else -> LightColorScheme // 浅色主题使用自定义浅色配色
     }
 
     val view = LocalView.current // 获取当前Compose视图

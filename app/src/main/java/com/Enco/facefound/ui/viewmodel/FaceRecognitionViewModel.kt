@@ -20,6 +20,11 @@ import kotlinx.coroutines.flow.update // 导入状态流的update扩展函数，
 import kotlinx.coroutines.isActive // 导入协程活跃状态检查属性，用于判断协程是否仍在运行
 import kotlinx.coroutines.launch // 导入协程启动函数，用于在作用域内启动新的协程
 import kotlinx.coroutines.withContext // 导入协程上下文切换函数，用于在不同调度器之间切换执行线程
+import kotlinx.coroutines.coroutineScope // 导入coroutineScope构建器，用于并行执行多个协程
+import kotlinx.coroutines.async // 导入async构建器，用于启动带返回值的协程
+import kotlinx.coroutines.awaitAll // 导入awaitAll扩展函数，用于等待所有协程完成
+import kotlinx.coroutines.sync.Semaphore // 导入信号量，用于限制并发数
+import kotlinx.coroutines.sync.withPermit // 导入withPermit扩展函数，用于获取信号量许可
 import com.Enco.facefound.ml.OnnxFaceRecognition // 导入ONNX人脸识别核心类，提供人脸检测和识别功能
 import com.Enco.facefound.util.NpzParser // 导入NPZ文件解析器，用于解析NPZ格式的模板文件
 import com.Enco.facefound.util.TemplateRepository // 导入模板仓库类，用于持久化存储和加载人脸模板数据
@@ -318,86 +323,154 @@ class FaceRecognitionViewModel(application: Application) : AndroidViewModel(appl
         addLog("📷 加载图片: ${uri.lastPathSegment}") // 记录加载图片的日志，显示文件名
     } // 结束setInputImage函数
 
-    fun startBatchRecognition(uris: List<Uri>) { // 批量识别函数，处理多张图片
+    /**
+     * 批量识别 - 并行优化版本
+     * 使用协程并行处理多张图片，充分利用多核CPU
+     * 动态计算并发数，避免OOM
+     */
+    fun startBatchRecognition(uris: List<Uri>) { // 批量识别函数，并行处理多张图片
         val recognizer = faceRecognizer ?: return // 获取人脸识别器实例，为空则直接返回
         val currentState = _uiState.value // 获取当前UI状态快照
         if (!currentState.isModelLoaded) return // 如果模型未加载，直接返回
         if (uris.isEmpty()) return // 如果图片列表为空，直接返回
 
         val appContext = getApplication<Application>() // 获取应用上下文
+        
+        // 动态计算并发数：根据CPU核心数，留2个核心给系统和其他任务
+        val cpuCores = Runtime.getRuntime().availableProcessors()
+        val maxConcurrency = (cpuCores - 2).coerceIn(2, 4) // 最少2并发，最多4并发（避免OOM）
+        
         viewModelScope.launch { // 在ViewModel作用域内启动协程
             _uiState.update { it.copy(isProcessing = true, statusMessage = "批量识别中... 0/${uris.size}") } // 更新状态为处理中
-            addLog("📷 开始批量识别: ${uris.size} 张图片") // 记录批量识别开始的日志
+            addLog("📷 开始批量识别: ${uris.size} 张图片 (并行度: $maxConcurrency)") // 记录批量识别开始的日志
 
             val allHistoryItems = mutableListOf<RecognitionHistoryItem>() // 创建批量识别的历史记录列表
-            var processedCount = 0 // 已处理图片计数
             var successCount = 0 // 成功识别的图片计数
+            val processedCount = java.util.concurrent.atomic.AtomicInteger(0) // 已处理图片计数（线程安全）
+            
+            // 使用信号量限制并发数，避免同时处理太多大图片导致OOM
+            val semaphore = kotlinx.coroutines.sync.Semaphore(maxConcurrency)
+            
+            try {
+                // 使用 coroutineScope 并行处理所有图片
+                coroutineScope {
+                    val deferreds = uris.map { uri ->
+                        async(Dispatchers.Default) { // 使用 Default 调度器，适合CPU密集型任务
+                            semaphore.withPermit { // 获取并发许可，限制并发数
+                                processSingleImageForBatch(
+                                    appContext, 
+                                    uri, 
+                                    recognizer, 
+                                    currentState,
+                                    processedCount,
+                                    uris.size
+                                )
+                            }
+                        }
+                    }
+                    
+                    // 等待所有图片处理完成，并收集结果
+                    val results = deferreds.map { it.await() }
+                    
+                    // 统计结果
+                    results.forEach { result ->
+                        if (result != null) {
+                            allHistoryItems.add(result)
+                            if (result.recognizedNames.isNotEmpty()) {
+                                successCount++
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                addLog("❌ 批量识别异常: ${e.message}")
+            }
 
-            for (uri in uris) { // 遍历每张图片
-                try { // 尝试处理当前图片
-                    val sourceBitmap = withContext(Dispatchers.IO) { // 在IO线程中加载图片
-                        loadBitmapFromUri(appContext, uri) // 从URI加载位图
-                    } // 结束IO线程
-                    if (sourceBitmap == null) { // 如果图片加载失败
-                        addLog("⚠️ 跳过: ${uri.lastPathSegment} (加载失败)") // 记录跳过日志
-                        processedCount++ // 递增已处理计数
-                        continue // 跳过当前图片，继续下一张
-                    } // 结束加载失败检查
-
-                    val maxDimension = 2048 // 定义图片最大尺寸限制
-                    val workingBitmap = if (sourceBitmap.width > maxDimension || sourceBitmap.height > maxDimension) { // 如果图片超过最大尺寸
-                        val scale = maxDimension.toFloat() / maxOf(sourceBitmap.width, sourceBitmap.height) // 计算缩放比例
-                        val newWidth = (sourceBitmap.width * scale).toInt() // 计算缩放后宽度
-                        val newHeight = (sourceBitmap.height * scale).toInt() // 计算缩放后高度
-                        val scaled = Bitmap.createScaledBitmap(sourceBitmap, newWidth, newHeight, true) // 创建缩放后的位图
-                        sourceBitmap.recycle() // 回收原始位图
-                        scaled // 使用缩放后的位图
-                    } else { // 如果图片尺寸在限制范围内
-                        sourceBitmap // 直接使用原图
-                    } // 结束图片尺寸处理
-
-                    val detections = recognizer.detectFaces(workingBitmap, currentState.detectionThreshold) // 执行人脸检测
-                    val names = if (detections.isNotEmpty()) { // 如果检测到人脸
-                        val results = recognizer.recognizeFacesParallel(workingBitmap, detections, templates, currentState.threshold) // 执行人脸识别
-                        results.map { it.name } // 提取识别结果中的人名列表
-                    } else { // 如果未检测到人脸
-                        emptyList() // 返回空人名列表
-                    } // 结束人脸检测与识别
-
-                    workingBitmap.recycle() // 释放工作位图内存
-
-                    val historyItem = RecognitionHistoryItem( // 创建当前图片的历史记录条目
-                        timestamp = Date(), // 记录当前时间
-                        recognizedNames = names, // 记录识别到的人名列表
-                        processingTimeMs = 0 // 批量模式不单独记录耗时
-                    ) // 结束RecognitionHistoryItem创建
-                    allHistoryItems.add(historyItem) // 将当前图片的历史记录添加到列表中
-
-                    processedCount++ // 递增已处理计数
-                    if (names.isNotEmpty()) successCount++ // 如果识别到人脸，递增成功计数
-                    _uiState.update { it.copy(statusMessage = "批量识别中... $processedCount/${uris.size}") } // 更新处理进度
-                    addLog("✅ ${uri.lastPathSegment}: ${names.joinToString(", ").ifEmpty { "未检测到人脸" }}") // 记录当前图片的识别结果
-                } catch (e: OutOfMemoryError) { // 捕获内存不足异常
-                    addLog("❌ ${uri.lastPathSegment}: 内存不足，跳过") // 记录内存不足日志
-                    processedCount++ // 递增已处理计数
-                    System.gc() // 建议垃圾回收器回收内存
-                } catch (e: Exception) { // 捕获其他异常
-                    addLog("❌ ${uri.lastPathSegment}: ${e.message}") // 记录错误日志
-                    processedCount++ // 递增已处理计数
-                } // 结束异常捕获
-            } // 结束图片遍历
-
-            _uiState.update { state -> // 更新UI状态，将批量识别的历史记录合并到现有历史中
+            _uiState.update { state -> // 更新UI状态
                 state.copy( // 复制当前状态
                     isProcessing = false, // 标记处理结束
-                    statusMessage = "批量识别完成: $successCount/${uris.size} 张识别到人脸", // 更新状态消息显示批量识别结果
-                    recognitionHistory = allHistoryItems + state.recognitionHistory.take(50 - allHistoryItems.size) // 将批量历史记录添加到历史头部，总条数限制50条
+                    statusMessage = "批量识别完成: $successCount/${uris.size} 张识别到人脸", // 更新状态消息
+                    recognitionHistory = allHistoryItems + state.recognitionHistory.take(50 - allHistoryItems.size) // 合并历史记录
                 ) // 结束copy
             } // 结束_uiState.update
-            saveHistory() // 将更新后的历史记录保存到SharedPreferences
-            addLog("批量识别完成: 共" + uris.size + "张，" + successCount + "张识别到人脸") // 记录批量识别完成的日志
+            saveHistory() // 保存历史记录
+            addLog("✅ 批量识别完成: 共${uris.size}张，$successCount 张识别到人脸") // 记录完成日志
         } // 结束viewModelScope.launch协程
     } // 结束startBatchRecognition函数
+
+    /**
+     * 处理单张图片用于批量识别（并行执行）
+     */
+    private suspend fun processSingleImageForBatch(
+        appContext: Context,
+        uri: Uri,
+        recognizer: OnnxFaceRecognition,
+        currentState: UiState,
+        processedCount: java.util.concurrent.atomic.AtomicInteger,
+        totalCount: Int
+    ): RecognitionHistoryItem? = withContext(Dispatchers.Default) {
+        return@withContext try { // 尝试处理当前图片
+            val sourceBitmap = withContext(Dispatchers.IO) { // 在IO线程中加载图片
+                loadBitmapFromUri(appContext, uri) // 从URI加载位图
+            } // 结束IO线程
+            if (sourceBitmap == null) { // 如果图片加载失败
+                addLog("⚠️ 跳过: ${uri.lastPathSegment} (加载失败)") // 记录跳过日志
+                processedCount.incrementAndGet() // 递增已处理计数
+                updateBatchProgress(processedCount.get(), totalCount) // 更新进度
+                return@withContext null // 返回null表示跳过
+            } // 结束加载失败检查
+
+            val maxDimension = 2048 // 定义图片最大尺寸限制
+            val workingBitmap = if (sourceBitmap.width > maxDimension || sourceBitmap.height > maxDimension) { // 如果图片超过最大尺寸
+                val scale = maxDimension.toFloat() / maxOf(sourceBitmap.width, sourceBitmap.height) // 计算缩放比例
+                val newWidth = (sourceBitmap.width * scale).toInt() // 计算缩放后宽度
+                val newHeight = (sourceBitmap.height * scale).toInt() // 计算缩放后高度
+                val scaled = Bitmap.createScaledBitmap(sourceBitmap, newWidth, newHeight, true) // 创建缩放后的位图
+                sourceBitmap.recycle() // 回收原始位图
+                scaled // 使用缩放后的位图
+            } else { // 如果图片尺寸在限制范围内
+                sourceBitmap // 直接使用原图
+            } // 结束图片尺寸处理
+
+            val detections = recognizer.detectFaces(workingBitmap, currentState.detectionThreshold) // 执行人脸检测
+            val names = if (detections.isNotEmpty()) { // 如果检测到人脸
+                val results = recognizer.recognizeFacesParallel(workingBitmap, detections, templates, currentState.threshold) // 执行人脸识别
+                results.map { it.name } // 提取识别结果中的人名列表
+            } else { // 如果未检测到人脸
+                emptyList() // 返回空人名列表
+            } // 结束人脸检测与识别
+
+            workingBitmap.recycle() // 释放工作位图内存
+
+            val historyItem = RecognitionHistoryItem( // 创建当前图片的历史记录条目
+                timestamp = Date(), // 记录当前时间
+                recognizedNames = names, // 记录识别到的人名列表
+                processingTimeMs = 0 // 批量模式不单独记录耗时
+            ) // 结束RecognitionHistoryItem创建
+
+            val count = processedCount.incrementAndGet() // 原子递增已处理计数
+            updateBatchProgress(count, totalCount) // 更新进度
+            addLog("✅ ${uri.lastPathSegment}: ${names.joinToString(", ").ifEmpty { "未检测到人脸" }}") // 记录当前图片的识别结果
+            
+            historyItem // 返回历史记录条目
+        } catch (e: OutOfMemoryError) { // 捕获内存不足异常
+            addLog("❌ ${uri.lastPathSegment}: 内存不足，跳过") // 记录内存不足日志
+            processedCount.incrementAndGet() // 递增已处理计数
+            System.gc() // 建议垃圾回收器回收内存
+            null // 返回null表示失败
+        } catch (e: Exception) { // 捕获其他异常
+            addLog("❌ ${uri.lastPathSegment}: ${e.message}") // 记录错误日志
+            processedCount.incrementAndGet() // 递增已处理计数
+            null // 返回null表示失败
+        } // 结束异常捕获
+    } // 结束processSingleImageForBatch函数
+
+    /**
+     * 更新批量识别进度（线程安全）
+     */
+    private suspend fun updateBatchProgress(processed: Int, total: Int) {
+        _uiState.update { it.copy(statusMessage = "批量识别中... $processed/$total") } // 更新处理进度
+    } // 结束updateBatchProgress函数
 
     // --- 模板管理 --- // 分隔注释，标记下方为模板管理相关函数
 

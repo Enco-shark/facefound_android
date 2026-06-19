@@ -16,10 +16,14 @@ import android.net.Uri // 导入URI类
 import android.util.Log // 导入日志工具
 import com.Enco.facefound.ml.OnnxFaceRecognition // 导入人脸识别引擎
 import kotlinx.coroutines.Dispatchers // 导入协程调度器
+import kotlinx.coroutines.channels.BufferOverflow // 导入缓冲区溢出策略
+import kotlinx.coroutines.channels.Channel // 导入协程通道
 import kotlinx.coroutines.flow.Flow // 导入Flow流
-import kotlinx.coroutines.flow.flow // 导入flow构建器
+import kotlinx.coroutines.flow.channelFlow // 导入channelFlow构建器（支持协程内发射）
+import kotlinx.coroutines.flow.flow // 导入flow构建器（extractFrames方法需要）
 import kotlinx.coroutines.flow.flowOn // 导入flowOn操作符
 import kotlinx.coroutines.isActive // 导入isActive协程状态检查
+import kotlinx.coroutines.launch // 导入协程启动函数
 import kotlinx.coroutines.withContext // 导入withContext协程切换
 import java.io.File // 导入文件类
 import java.nio.ByteBuffer // 导入字节缓冲区
@@ -128,68 +132,119 @@ class VideoProcessor(private val faceRecognizer: OnnxFaceRecognition) { // 视�
         }
     }.flowOn(Dispatchers.IO) // 在IO线程执行
 
-    fun processVideoFrames( // 处理视频帧并识别人脸
+    fun processVideoFrames( // 处理视频帧并识别人脸（A2优化版：channelFlow流水线）
         context: Context, // 上下文
         videoUri: Uri, // 视频URI
         templates: Map<String, FloatArray>, // 人脸模板库
         threshold: Float, // 相似度阈值
         detectionThreshold: Float = 0.5f, // 检测置信度阈值
         onProgress: (ProcessProgress) -> Unit // 进度回调
-    ): Flow<ProcessedFrame> = flow { // 返回处理结果的Flow
+    ): Flow<ProcessedFrame> = channelFlow { // 使用channelFlow支持协程内启动子协程
         val retriever = MediaMetadataRetriever() // 创建元数据提取器
+        Log.d(TAG, "🎬 开始处理视频: $videoUri") // 记录开始处理视频的日志
+
         try { // 异常保护
             retriever.setDataSource(context, videoUri) // 设置数据源
-            val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION) // 提取时长
+            val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION) // 提取时长（只提取一次）
             val durationMs = durationStr?.toLongOrNull() ?: 0L // 解析时长
             if (durationMs <= 0) { // 时长无效
                 Log.e(TAG, "无法获取视频时长") // 打印错误日志
-                return@flow // 退出
+                return@channelFlow // 退出
             }
+            Log.d(TAG, "📏 视频时长: ${durationMs}ms，使用OPTION_CLOSEST_SYNC加速帧提取") // 记录视频信息
 
-            var timeUs = 0L // 当前时间位置（微秒）
-            var frameIndex = 0 // 帧计数器
             val intervalUs = FRAME_SAMPLE_INTERVAL_US // 采样间隔
 
-            while (timeUs <= durationMs * 1000) { // 循环直到超过视频时长
-                if (!coroutineContext.isActive) break // 协程被取消则退出
+            // === 创建帧通道，容量=3，实现预取缓冲区 ===
+            val frameChannel = Channel<Triple<Bitmap?, Long, Int>>( // Triple<位图, 时间戳, 帧序号>
+                capacity = 3, // 缓冲3帧，有效隐藏提取延迟
+                onBufferOverflow = BufferOverflow.SUSPEND // 缓冲区满时挂起生产者
+            )
 
-                val frameBitmap = retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST) // 获取当前时间点的帧
-                if (frameBitmap == null) { // 获取失败
-                    frameIndex++ // 递增帧计数
-                    timeUs += intervalUs // 推进时间位置
-                    continue // 跳过此帧
+            // === 生产者协程：提取帧并发送到通道 ===
+            val producerJob = launch(Dispatchers.IO) { // 在IO线程运行生产者
+                var timeUs = 0L // 当前时间位置（微秒）
+                var frameIndex = 0 // 帧计数器
+
+                try { // 异常保护
+                    while (timeUs <= durationMs * 1000) { // 循环直到超过视频时长
+                        if (!isActive) break // 协程被取消则退出
+
+                        // 优化点：OPTION_CLOSEST_SYNC 定位到最近关键帧，比 OPTION_CLOSEST 快2x
+                        val frameBitmap = retriever.getFrameAtTime(
+                            timeUs,
+                            MediaMetadataRetriever.OPTION_CLOSEST_SYNC // 关键帧定位，速度更快
+                        )
+                        frameChannel.send(Triple(frameBitmap, timeUs, frameIndex)) // 发送到通道
+
+                        timeUs += intervalUs // 推进时间位置
+                        frameIndex++ // 递增帧计数器
+                    }
+                    Log.d(TAG, "✅ 生产者完成：共提取 $frameIndex 帧") // 记录完成日志
+                } catch (e: Exception) { // 捕获异常
+                    Log.e(TAG, "❌ 生产者异常: ${e.message}") // 记录异常日志
+                    frameChannel.close(e) // 关闭通道并传递异常
+                    return@launch // 退出生产者协程
+                } finally { // 最终清理
+                    frameChannel.close() // 关闭通道，通知消费者没有更多数据
                 }
-
-                val detections = faceRecognizer.detectFaces(frameBitmap, detectionThreshold) // 检测当前帧中的人脸
-
-                // 并行识别所有检测到的人脸
-                val results = faceRecognizer.recognizeFacesParallel(
-                    frameBitmap, detections, templates, threshold
-                )
-                val names = results.map { it.name }.toMutableList()
-
-                val drawnBitmap = drawVideoResultsInPlace(frameBitmap, detections, names) // 在帧上绘制检测结果
-
-                onProgress(ProcessProgress(frameIndex, 0, detections, names)) // 回报进度
-
-                emit(ProcessedFrame( // 发射处理结果
-                    frameIndex = frameIndex, // 帧序号
-                    presentationTimeUs = timeUs, // 时间戳
-                    bitmap = drawnBitmap, // 绘制后的位图
-                    detections = detections, // 检测结果
-                    names = names // 识别结果
-                ))
-
-                frameIndex++ // 递增帧计数
-                timeUs += intervalUs // 推进时间位置
             }
-        } catch (e: Exception) { // 处理异常
+
+            // === 消费者：从通道取帧 → 推理 → 发射结果 ===
+            var resultIndex = 0 // 结果帧计数器
+            try { // 异常保护
+                for ((frameBitmap, timeUs, _) in frameChannel) { // 从通道接收帧（挂起等待）
+                    if (!coroutineContext.isActive) break // 协程被取消则退出
+
+                    if (frameBitmap == null) { // 帧提取失败
+                        resultIndex++ // 递增结果计数器
+                        continue // 跳过此帧
+                    }
+
+                    // 执行人脸检测和识别（与生产者提取下一帧并行执行）
+                    val detectionStartTime = System.currentTimeMillis() // 记录检测开始时间
+                    val detections = faceRecognizer.detectFaces(frameBitmap, detectionThreshold) // 检测人脸
+
+                    val results = faceRecognizer.recognizeFacesParallel( // 并行识别
+                        frameBitmap, detections, templates, threshold
+                    )
+                    val names = results.map { it.name }.toMutableList() // 提取人名
+
+                    val processingTime = System.currentTimeMillis() - detectionStartTime // 计算处理耗时
+                    Log.v(TAG, "🖼️ 帧 $resultIndex 处理耗时: ${processingTime}ms, 检测到 ${detections.size} 张人脸")
+
+                    val drawnBitmap = drawVideoResultsInPlace(frameBitmap, detections, names) // 绘制结果
+
+                    onProgress(ProcessProgress(resultIndex, 0, detections, names)) // 回报进度
+
+                    send( // 发射到Flow收集者
+                        ProcessedFrame(
+                            frameIndex = resultIndex,
+                            presentationTimeUs = timeUs,
+                            bitmap = drawnBitmap,
+                            detections = detections,
+                            names = names
+                        )
+                    )
+
+                    resultIndex++ // 递增结果计数器
+                }
+                Log.d(TAG, "✅ 消费者完成：共处理 $resultIndex 帧") // 记录完成日志
+            } catch (e: Exception) { // 捕获异常
+                Log.e(TAG, "❌ 消费者异常: ${e.message}", e) // 记录异常日志
+                throw e // 重新抛出异常
+            }
+
+            producerJob.join() // 等待生产者协程结束，确保资源正确释放
+
+        } catch (e: Exception) { // 处理外层异常
             Log.e(TAG, "视频帧处理失败: ${e.message}", e) // 打印错误日志
             throw e // 重新抛出异常
         } finally { // 清理资源
-            try { retriever.release() } catch (_: Exception) {} // 释放提取器
+            try { retriever.release() } catch (_: Exception) {} // 释放MediaMetadataRetriever资源
+            Log.d(TAG, "🧹 视频处理器资源已释放") // 记录资源释放日志
         }
-    }.flowOn(Dispatchers.IO) // 在IO线程执行
+    }.flowOn(Dispatchers.Default) // 在Default调度器执行（推理为CPU密集型）
 
     suspend fun encodeToVideo( // 将处理后的帧编码为视频文件
         frames: List<ProcessedFrame>, // 处理后的帧列表
