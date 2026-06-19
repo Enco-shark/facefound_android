@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.Info // 导入信息图标，用�
 import androidx.compose.material.icons.filled.Menu // 导入菜单图标，用于打开侧边抽屉
 import androidx.compose.material.icons.filled.Palette // 导入调色板图标，用于主题切换功能
 import androidx.compose.material.icons.filled.PlayArrow // 导入播放箭头图标，用于开始识别操作
+import androidx.compose.material.icons.filled.Stop // 导入停止图标，用于取消操作
 import androidx.compose.material.icons.filled.Refresh // 导入刷新图标，用于重新选择操作
 import androidx.compose.material.icons.filled.Save // 导入保存图标，用于保存结果操作
 import androidx.compose.material.icons.filled.Settings // 导入设置图标，用于设置页面入口
@@ -469,7 +470,6 @@ fun MainContent( // 定义主页内容函数
                 hasImage = uiState.inputImageUri != null, // 传入是否已选择图片
                 hasResult = uiState.resultBitmap != null, // 传入是否有识别结果
                 onStartRecognition = { viewModel.startRecognition() }, // 传入开始识别回调
-                onCancelProcessing = { viewModel.cancelProcessing() }, // 传入取消处理回调
                 onSaveImage = { viewModel.saveResultImage() }, // 传入保存图片回调
                 onBatchRecognize = { batchImagePicker() } // 传入批量识别回调
             ) // ImageControlButtons调用结束
@@ -1679,55 +1679,62 @@ fun ImageControlButtons(
     hasImage: Boolean,
     hasResult: Boolean,
     onStartRecognition: () -> Unit,
-    onCancelProcessing: () -> Unit,
     onSaveImage: () -> Unit,
     onBatchRecognize: () -> Unit
 ) {
-    Row(
+    Column(
         Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        if (!isProcessing) {
-            Button(
-                onClick = onStartRecognition,
-                enabled = hasImage,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("开始识别")
-            }
-            
-            OutlinedButton(
-                onClick = onBatchRecognize,
-                enabled = !isProcessing,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("批量识别")
-            }
-        } else {
-            Button(
-                onClick = onCancelProcessing,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error
-                )
-            ) {
-                Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("取消")
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (!isProcessing) {
+                Button(
+                    onClick = onStartRecognition,
+                    enabled = hasImage,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("开始识别")
+                }
+                
+                OutlinedButton(
+                    onClick = onBatchRecognize,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("批量识别")
+                }
+            } else {
+                // 处理中：显示进度指示器（图片处理很快，无需取消按钮）
+                Button(
+                    onClick = { },
+                    enabled = false,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("识别中...")
+                }
             }
         }
         
+        // 有结果时显示保存按钮（单独一行）
         if (hasResult && !isProcessing) {
             Button(
                 onClick = onSaveImage,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
